@@ -98,7 +98,8 @@ end
 
 function sequence_item(st, evr, sz)
     item = {}
-    while true
+    endpos = position(st) + sz
+    while position(st) < endpos
         elt = element(st, evr)
         if isequal(elt.tag, (0xFFFE,0xE00D))
             break
@@ -128,9 +129,7 @@ function sequence_parse(st, evr, sz)
             error("dicom: expected item tag in sequence")
         end
         push!(sq, sequence_item(st, evr, itemlen))
-        if itemlen != 0xffffffff
-            sz -= itemlen
-        end
+        sz -= 8 + (itemlen != 0xffffffff) * itemlen
     end
     return sq
 end
