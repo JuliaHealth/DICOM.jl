@@ -1,4 +1,7 @@
+module DICOM
 include("dcm_dict.jl")
+
+export dcm_parse, dcm_write
 
 function dcm_init()
     dcm_dict = Dict()
@@ -414,4 +417,5 @@ function dcm_write(st, d)
     for el in d
         element_write(st, evr, el)
     end
+end
 end
