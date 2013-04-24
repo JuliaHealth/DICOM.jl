@@ -295,7 +295,7 @@ function element(st, evr, dcm)
     
     vr == "AS" ? ASCIIString(read(st,Uint8,4)) :
     
-    vr == "DS" ? map(integer, string_parse(st, sz, 16, false)) :
+    vr == "DS" ? map(parsefloat, string_parse(st, sz, 16, false)) :
     vr == "IS" ? map(integer, string_parse(st, sz, 12, false)) :
     
     vr == "AE" ? string_parse(st, sz, 16, false) :
