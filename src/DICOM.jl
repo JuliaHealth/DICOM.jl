@@ -1,7 +1,7 @@
 module DICOM
 include("dcm_dict.jl")
 
-export dcm_parse, dcm_write
+export dcm_parse, dcm_write, lookup, lookup_vr
 
 function dcm_init()
     dcm_dict = Dict()
