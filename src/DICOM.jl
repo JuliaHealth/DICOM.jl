@@ -6,7 +6,7 @@ export dcm_parse, dcm_write, lookup, lookup_vr
 function dcm_init()
     dcm_dict = Dict()
     for d in (_dcmdict_data_::Array{Any,1})
-        dcm_dict[(uint16(d[1][1]),uint16(d[1][2]))] = d[2:]
+        dcm_dict[(uint16(d[1][1]),uint16(d[1][2]))] = d[2:end]
     end
     dcm_dict
 end
@@ -47,10 +47,10 @@ VR_names={"AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
           "OW","PN","SH","SL","SQ","SS","ST","TM","UI","UL","UN","US","UT"}
 
 # mapping UID => bigendian? explicitvr?
-meta_uids = {"1.2.840.10008.1.2" => (false, false),
-             "1.2.840.10008.1.2.1" => (false, true),
-             "1.2.840.10008.1.2.1.99"=> (false, true),
-             "1.2.840.10008.1.2.2" => (true, true)}
+meta_uids = Dict([("1.2.840.10008.1.2", (false, false)),
+                  ("1.2.840.10008.1.2.1", (false, true)),
+                  ("1.2.840.10008.1.2.1.99", (false, true)),
+                  ("1.2.840.10008.1.2.2", (true, true))])
 
 dcm_store(st, grp, elt, writef) = dcm_store(st, grp, elt, writef, false)
 function dcm_store(st, grp, elt, writef, vr)
