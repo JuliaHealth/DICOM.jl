@@ -59,7 +59,7 @@ function dcm_store(st, grp, elt, writef, vr)
     write(st, uint16(elt))
     if !is(vr,false)
         write(st, vr)
-        if contains(("OB", "OW", "OF", "SQ", "UT", "UN"), vr)
+        if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
             write(st, uint16(0))
         else
             lentype = Uint16
@@ -257,7 +257,7 @@ function element(st, evr, dcm)
     gelt = (grp,elt)
     if evr && !always_implicit(grp,elt)
         vr = ASCIIString(read(st, Uint8, 2))
-        if contains(("OB", "OW", "OF", "SQ", "UT", "UN"), vr)
+        if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
             skip(st, 2)
         else
             lentype = Uint16
@@ -266,12 +266,19 @@ function element(st, evr, dcm)
     else
         vr = lookup_vr(gelt)
     end
+    if isodd(grp) && grp > 0x0008 && 0x0010 <= elt <+ 0x00FF
+        # Private creator
+        vr = "LO"
+    elseif isodd(grp) && grp > 0x0008
+        # Assume private
+        vr = "UN"
+    end
     if is(vr,false)
         error("dicom: unknown tag ", gelt)
     end
     
     sz = read(st,lentype)
-    
+
     data =
     vr=="ST" || vr=="LT" || vr=="UT" ? bytestring(read(st, Uint8, sz)) :
     
@@ -350,8 +357,8 @@ function element_write(st, evr, el::DcmElt)
     end
     data =
     isempty(el) ? Uint8[] :
-    contains(("OB","OF","OW","ST","LT","UT"), vr) ? el[1] :
-    contains(("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM"), vr) ?
+    vr in ("OB","OF","OW","ST","LT","UT") ? el[1] :
+    vr in ("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM") ?
         string_write(el, 0) :
     vr == "FL" ? convert(Array{Float32,1}, el) :
     vr == "FD" ? convert(Array{Float64,1}, el) :
@@ -360,7 +367,7 @@ function element_write(st, evr, el::DcmElt)
     vr == "UL" ? convert(Array{Uint32,1},  el) :
     vr == "US" ? convert(Array{Uint16,1},  el) :
     vr == "AT" ? [el...] :
-    contains(("DS","IS"), vr) ? string_write(map(string,el), 0) :
+    vr in ("DS","IS") ? string_write(map(string,el), 0) :
     el[1]
     
     dcm_store(st, gelt[1], gelt[2], s->write(s, data), evr)
@@ -372,12 +379,13 @@ function dcm_parse(st)
     sig = ASCIIString(read(st,Uint8,4))
     if sig != "DICM"
         error("dicom: invalid file header")
+        # seek(st, 0)
     end
     # a bit of a hack to detect explicit VR. seek past the first tag,
     # and check to see if a valid VR name is there
     skip(st, 4)
     sig = ASCIIString(read(st,Uint8,2))
-    evr = contains(VR_names, sig)
+    evr = sig in VR_names
     skip(st, -6)
     data = {}
     while true
