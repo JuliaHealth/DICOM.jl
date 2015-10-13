@@ -175,7 +175,7 @@ function pixeldata_parse(st, sz, vr, dcm)
     end
     if sz != 0xffffffff
         data = Array(dtype, xr, yr, zr)
-        read(st, data)
+        read!(st, data)
     else
         # start with Basic Offset Table Item
         data = [element(st, false)]
@@ -308,8 +308,8 @@ function element(st, evr, dcm)
     
     vr == "AS" ? ASCIIString(read(st,UInt8,4)) :
     
-    vr == "DS" ? map(parsefloat, string_parse(st, sz, 16, false)) :
-    vr == "IS" ? map(integer, string_parse(st, sz, 12, false)) :
+    vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)) :
+    vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)) :
     
     vr == "AE" ? string_parse(st, sz, 16, false) :
     vr == "CS" ? string_parse(st, sz, 16, false) :
@@ -326,7 +326,7 @@ function element(st, evr, dcm)
     if isodd(sz) && sz != 0xffffffff
         skip(st, 1)
     end
-    delt = DcmElt(gelt, isa(data,Vector{Any}) ? data : [ data ])
+    delt = DcmElt(gelt, isa(data,Vector{Any}) ? data : Any[ data ])
     if diffvr
         # record non-standard VR
         delt.vr = vr
