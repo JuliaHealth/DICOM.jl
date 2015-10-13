@@ -190,7 +190,7 @@ function pixeldata_parse(st, sz, vr, dcm)
                 error("dicom: expected item tag in encapsulated pixel data")
             end
             if is(dtype,UInt16); xr = div(xr,2); end
-            push!(data, read(st, Array(dtype, xr)))
+            push!(data, read!(st, Array(dtype, xr)))
         end
     end
     return data
