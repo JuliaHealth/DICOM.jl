@@ -25,7 +25,7 @@ function lookup_vr(gelt)
 end
 
 type DcmElt
-    tag::(Uint16,Uint16)
+    tag::Tuple{Uint16,Uint16}
     data::Array{Any,1}
     vr::ASCIIString    # "" except for non-standard VR
     DcmElt(tag, data) = new(tag,data,"")
