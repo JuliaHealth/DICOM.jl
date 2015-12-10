@@ -1,4 +1,5 @@
 module DICOM
+
 include("dcm_dict.jl")
 
 export dcm_parse, dcm_write, lookup, lookup_vr
@@ -25,7 +26,7 @@ function lookup_vr(gelt)
 end
 
 type DcmElt
-    tag::Tuple{UInt16,UInt16}
+    tag::(Tuple{UInt16,UInt16})
     data::Array{Any,1}
     vr::ASCIIString    # "" except for non-standard VR
     DcmElt(tag, data) = new(tag,data,"")
@@ -43,8 +44,8 @@ end
 always_implicit(grp, elt) = (grp == 0xFFFE && (elt == 0xE0DD||elt == 0xE000||
                                                elt == 0xE00D))
 
-VR_names=Any["AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
-          "OW","PN","SH","SL","SQ","SS","ST","TM","UI","UL","UN","US","UT"]
+VR_names=[ "AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
+       "OW","PN","SH","SL","SQ","SS","ST","TM","UI","UL","UN","US","UT" ]
 
 # mapping UID => bigendian? explicitvr?
 meta_uids = Dict([("1.2.840.10008.1.2", (false, false)),
@@ -54,7 +55,7 @@ meta_uids = Dict([("1.2.840.10008.1.2", (false, false)),
 
 dcm_store(st, grp, elt, writef) = dcm_store(st, grp, elt, writef, false)
 function dcm_store(st, grp, elt, writef, vr)
-    lentype = Uint32
+    lentype = UInt32
     write(st, UInt16(grp))
     write(st, UInt16(elt))
     if !is(vr,false)
@@ -100,7 +101,7 @@ function undefined_length(st, vr)
 end
 
 function sequence_item(st, evr, sz)
-    item = Any[] 
+    item = Any[]
     endpos = position(st) + sz
     while position(st) < endpos
         elt = element(st, evr)
@@ -120,11 +121,11 @@ function sequence_item_write(st, evr, item)
 end
 
 function sequence_parse(st, evr, sz)
-    sq = Any[] 
+    sq = Any[]
     while sz > 0
         grp = read(st, UInt16)
         elt = read(st, UInt16)
-        itemlen = read(st, Uint32)
+        itemlen = read(st, UInt32)
         if grp==0xFFFE && elt==0xE0DD
             return sq
         end
@@ -151,7 +152,7 @@ function pixeldata_parse(st, sz, vr, dcm)
     zr=1
     if vr=="OB"
         xr = sz
-        dtype = Uint8
+        dtype = UInt8
     else
         xr = div(sz,2)
         dtype = UInt16
@@ -172,14 +173,14 @@ function pixeldata_parse(st, sz, vr, dcm)
     end
     if sz != 0xffffffff
         data = Array(dtype, xr, yr, zr)
-        read(st, data)
+        read!(st, data)
     else
         # start with Basic Offset Table Item
-        data = Any[element(st, false)]
+        data = [element(st, false)]
         while true
             grp = read(st, UInt16)
             elt = read(st, UInt16)
-            xr = read(st, Uint32)
+            xr = read(st, UInt32)
             if grp == 0xFFFE && elt == 0xE0DD
                 return data
             end
@@ -187,7 +188,7 @@ function pixeldata_parse(st, sz, vr, dcm)
                 error("dicom: expected item tag in encapsulated pixel data")
             end
             if is(dtype,UInt16); xr = div(xr,2); end
-            push!(data, read(st, Array(dtype, xr)))
+            push!(data, read!(st, Array(dtype, xr)))
         end
     end
     return data
@@ -199,7 +200,7 @@ function pixeldata_write(st, evr, el)
     end
     d = el[1]
     nt = eltype(d)
-    vr = is(nt,Uint8)  || is(nt,Int8)  ? "OB" :
+    vr = is(nt,UInt8)  || is(nt,Int8)  ? "OB" :
          is(nt,UInt16) || is(nt,Int16) ? "OW" :
          is(nt,Float32)                ? "OF" :
          error("dicom: unsupported pixel format")
@@ -223,7 +224,7 @@ end
 
 function string_parse(st, sz, maxlen, spaces)
     endpos = position(st)+sz
-    data = Any[""]
+    data = [ "" ]
     first = true
     while position(st) < endpos
         c = !first||spaces ? read(st,Char) : skip_spaces(st)
@@ -241,11 +242,11 @@ function string_parse(st, sz, maxlen, spaces)
     return data
 end
 
-numeric_parse(st, T, sz) = [ read(st, T) for i=1:div(sz,sizeof(T)) ] 
+numeric_parse(st, T, sz) = [ read(st, T) for i=1:div(sz,sizeof(T)) ]
 
 element(st, evr) = element(st, evr, false)
 function element(st, evr, dcm)
-    lentype = Uint32
+    lentype = UInt32
     diffvr = false
     local grp
     try
@@ -256,7 +257,7 @@ function element(st, evr, dcm)
     elt = read(st, UInt16)
     gelt = (grp,elt)
     if evr && !always_implicit(grp,elt)
-        vr = ASCIIString(read(st, Uint8, 2))
+        vr = ASCIIString(read(st, UInt8, 2))
         if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
             skip(st, 2)
         else
@@ -276,54 +277,54 @@ function element(st, evr, dcm)
     if is(vr,false)
         error("dicom: unknown tag ", gelt)
     end
-    
+
     sz = read(st,lentype)
 
     data =
-    vr=="ST" || vr=="LT" || vr=="UT" ? bytestring(read(st, Uint8, sz)) :
-    
+    vr=="ST" || vr=="LT" || vr=="UT" ? bytestring(read(st, UInt8, sz)) :
+
     sz==0 || vr=="XX" ? Any[] :
-    
+
     vr == "SQ" ? sequence_parse(st, evr, sz) :
-    
+
     gelt == (0x7FE0,0x0010) ? pixeldata_parse(st, sz, vr, dcm) :
-    
+
     sz == 0xffffffff ? undefined_length(st, vr) :
-    
+
     vr == "FL" ? numeric_parse(st, Float32, sz) :
     vr == "FD" ? numeric_parse(st, Float64, sz) :
     vr == "SL" ? numeric_parse(st, Int32  , sz) :
     vr == "SS" ? numeric_parse(st, Int16  , sz) :
-    vr == "UL" ? numeric_parse(st, Uint32 , sz) :
+    vr == "UL" ? numeric_parse(st, UInt32 , sz) :
     vr == "US" ? numeric_parse(st, UInt16 , sz) :
-    
-    vr == "OB" ? read(st, Uint8  , sz)        :
+
+    vr == "OB" ? read(st, UInt8  , sz)        :
     vr == "OF" ? read(st, Float32, div(sz,4)) :
     vr == "OW" ? read(st, UInt16 , div(sz,2)) :
-    
+
     vr == "AT" ? [ read(st,UInt16,2) for n=1:div(sz,4) ] :
-    
-    vr == "AS" ? ASCIIString(read(st,Uint8,4)) :
-    
-    vr == "DS" ? map(parsefloat, string_parse(st, sz, 16, false)) :
-    vr == "IS" ? map(integer, string_parse(st, sz, 12, false)) :
-    
+
+    vr == "AS" ? ASCIIString(read(st,UInt8,4)) :
+
+    vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)) :
+    vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)) :
+
     vr == "AE" ? string_parse(st, sz, 16, false) :
     vr == "CS" ? string_parse(st, sz, 16, false) :
     vr == "SH" ? string_parse(st, sz, 16, false) :
     vr == "LO" ? string_parse(st, sz, 64, false) :
     vr == "UI" ? string_parse(st, sz, 64, false) :
     vr == "PN" ? string_parse(st, sz, 64, true)  :
-    
+
     vr == "DA" ? string_parse(st, sz, 10, true) :
     vr == "DT" ? string_parse(st, sz, 26, false) :
     vr == "TM" ? string_parse(st, sz, 16, false) :
-    read(st, Uint8, sz)
-    
+    read(st, UInt8, sz)
+
     if isodd(sz) && sz != 0xffffffff
         skip(st, 1)
     end
-    delt = DcmElt(gelt, isa(data,Vector{Any}) ? data : [data])
+    delt = DcmElt(gelt, isa(data,Vector{Any}) ? data : Any[ data ])
     if diffvr
         # record non-standard VR
         delt.vr = vr
@@ -356,7 +357,7 @@ function element_write(st, evr, el::DcmElt)
                          s->sequence_write(s, evr, el), evr)
     end
     data =
-    isempty(el) ? Uint8[] :
+    isempty(el) ? UInt8[] :
     vr in ("OB","OF","OW","ST","LT","UT") ? el[1] :
     vr in ("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM") ?
         string_write(el, 0) :
@@ -364,19 +365,19 @@ function element_write(st, evr, el::DcmElt)
     vr == "FD" ? convert(Array{Float64,1}, el) :
     vr == "SL" ? convert(Array{Int32,1},   el) :
     vr == "SS" ? convert(Array{Int16,1},   el) :
-    vr == "UL" ? convert(Array{Uint32,1},  el) :
+    vr == "UL" ? convert(Array{UInt32,1},  el) :
     vr == "US" ? convert(Array{UInt16,1},  el) :
     vr == "AT" ? [el...] :
     vr in ("DS","IS") ? string_write(map(string,el), 0) :
     el[1]
-    
+
     dcm_store(st, gelt[1], gelt[2], s->write(s, data), evr)
 end
 
 function dcm_parse(st)
     evr = false
     skip(st, 128)
-    sig = ASCIIString(read(st,Uint8,4))
+    sig = ASCIIString(read(st,UInt8,4))
     if sig != "DICM"
         error("dicom: invalid file header")
         # seek(st, 0)
@@ -384,10 +385,10 @@ function dcm_parse(st)
     # a bit of a hack to detect explicit VR. seek past the first tag,
     # and check to see if a valid VR name is there
     skip(st, 4)
-    sig = ASCIIString(read(st,Uint8,2))
+    sig = ASCIIString(read(st,UInt8,2))
     evr = sig in VR_names
     skip(st, -6)
-    data = Any[] 
+    data = Any[]
     while true
         fld = element(st, evr, data)
         if is(fld,false)
@@ -412,15 +413,15 @@ function dcm_parse(st)
 end
 
 function dcm_write(st, d)
-    write(st, zeros(Uint8, 128))
+    write(st, zeros(UInt8, 128))
     write(st, "DICM")
     # if any elements specify a VR then use explicit VR syntax
-    evr = any(x->x.vr!="", d)
+    evr = anyp(x->x.vr!="", d)
     # insert UID for our transfer syntax
     if evr
-        element_write(st, evr, DcmElt((0x0002,0x0010),["1.2.840.10008.1.2.1"]))
+        element_write(st, evr, DcmElt((0x0002,0x0010),[ "1.2.840.10008.1.2.1" ]))
     else
-        element_write(st, evr, DcmElt((0x0002,0x0010),["1.2.840.10008.1.2"]))
+        element_write(st, evr, DcmElt((0x0002,0x0010),[ "1.2.840.10008.1.2" ]))
     end
     for el in d
         element_write(st, evr, el)
