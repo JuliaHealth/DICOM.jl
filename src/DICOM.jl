@@ -6,7 +6,7 @@ export dcm_parse, dcm_write, lookup, lookup_vr
 function dcm_init()
     dcm_dict = Dict()
     for d in (_dcmdict_data_::Array{Any,1})
-        dcm_dict[(uint16(d[1][1]),uint16(d[1][2]))] = d[2:end]
+        dcm_dict[(UInt16(d[1][1]),UInt16(d[1][2]))] = d[2:end]
     end
     dcm_dict
 end
@@ -55,12 +55,12 @@ meta_uids = Dict([("1.2.840.10008.1.2", (false, false)),
 dcm_store(st, grp, elt, writef) = dcm_store(st, grp, elt, writef, false)
 function dcm_store(st, grp, elt, writef, vr)
     lentype = Uint32
-    write(st, uint16(grp))
-    write(st, uint16(elt))
+    write(st, UInt16(grp))
+    write(st, UInt16(elt))
     if !is(vr,false)
         write(st, vr)
         if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
-            write(st, uint16(0))
+            write(st, UInt16(0))
         else
             lentype = UInt16
         end
@@ -74,7 +74,7 @@ function dcm_store(st, grp, elt, writef, vr)
     write(st, convert(lentype, sz))
     seek(st, endp)
     if isodd(sz)
-        write(st, uint8(0))
+        write(st, UInt8(0))
     end
 end
 
