@@ -176,7 +176,7 @@ function pixeldata_parse(st, sz, vr, dcm)
         read!(st, data)
     else
         # start with Basic Offset Table Item
-        data = [element(st, false)]
+        data = Array{Any,1}(element(st, false))
         while true
             grp = read(st, UInt16)
             elt = read(st, UInt16)
@@ -231,6 +231,8 @@ function string_parse(st, sz, maxlen, spaces)
         if c == '\\'
             push!(data, "")
             first = true
+        elseif c == '\0'
+            break
         else
             data[end] = string(data[end],c)  # TODO: inefficient
             first = false
