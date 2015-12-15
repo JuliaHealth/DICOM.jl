@@ -231,6 +231,8 @@ function string_parse(st, sz, maxlen, spaces)
         if c == '\\'
             push!(data, "")
             first = true
+        elseif c == '\0'
+            break
         else
             data[end] = string(data[end],c)  # TODO: inefficient
             first = false
