@@ -28,10 +28,11 @@ end
 type DcmElt
     tag::(Tuple{UInt16,UInt16})
     data::Array{Any,1}
-    vr::ASCIIString    # "" except for non-standard VR
+    vr::String    # "" except for non-standard VR
     DcmElt(tag, data) = new(tag,data,"")
 end
 
+# takes dcm and tag (specify type?)
 function lookup(d, t)
     for el in d
         if isequal(el.tag,t)
@@ -44,7 +45,7 @@ end
 always_implicit(grp, elt) = (grp == 0xFFFE && (elt == 0xE0DD||elt == 0xE000||
                                                elt == 0xE00D))
 
-VR_names=[ "AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
+VR_names = [ "AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
        "OW","PN","SH","SL","SQ","SS","ST","TM","UI","UL","UN","US","UT" ]
 
 # mapping UID => bigendian? explicitvr?
@@ -158,21 +159,23 @@ function pixeldata_parse(st, sz, vr, dcm)
         dtype = UInt16
     end
     if !is(dcm,false)
+	# (0028,0010) defines number of rows
         f = lookup(dcm, (0x0028,0x0010))
         if !is(f,false)
-            xr = f.data[1]
+            xr = f.data[1][1]
         end
+	# (0028,0011) defines number of columns
         f = lookup(dcm, (0x0028,0x0011))
         if !is(f,false)
-            yr = f.data[1]
+            yr = f.data[1][1]
         end
         f = lookup(dcm, (0x0028,0x0012))
         if !is(f,false)
-            zr = f.data[1]
+            zr = f.data[1][1]
         end
     end
     if sz != 0xffffffff
-        data = Array(dtype, xr, yr, zr)
+        data = Array{dtype}(xr, yr, zr)
         read!(st, data)
     else
         # start with Basic Offset Table Item
@@ -244,7 +247,7 @@ function string_parse(st, sz, maxlen, spaces)
     return data
 end
 
-numeric_parse(st, T, sz) = [ read(st, T) for i=1:div(sz,sizeof(T)) ]
+numeric_parse(st, T, sz) = [read(st, T) for i=1:div(sz,sizeof(T))]
 
 element(st, evr) = element(st, evr, false)
 function element(st, evr, dcm)
@@ -259,7 +262,7 @@ function element(st, evr, dcm)
     elt = read(st, UInt16)
     gelt = (grp,elt)
     if evr && !always_implicit(grp,elt)
-        vr = ASCIIString(read(st, UInt8, 2))
+        vr = String(read(st, UInt8, 2))
         if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
             skip(st, 2)
         else
@@ -283,7 +286,7 @@ function element(st, evr, dcm)
     sz = read(st,lentype)
 
     data =
-    vr=="ST" || vr=="LT" || vr=="UT" ? bytestring(read(st, UInt8, sz)) :
+    vr=="ST" || vr=="LT" || vr=="UT" ? string(read(st, UInt8, sz)) :
 
     sz==0 || vr=="XX" ? Any[] :
 
@@ -306,7 +309,7 @@ function element(st, evr, dcm)
 
     vr == "AT" ? [ read(st,UInt16,2) for n=1:div(sz,4) ] :
 
-    vr == "AS" ? ASCIIString(read(st,UInt8,4)) :
+    vr == "AS" ? String(read(st,UInt8,4)) :
 
     vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)) :
     vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)) :
@@ -376,10 +379,11 @@ function element_write(st, evr, el::DcmElt)
     dcm_store(st, gelt[1], gelt[2], s->write(s, data), evr)
 end
 
-function dcm_parse(st)
+function dcm_parse(fn)
+    st = open(fn)
     evr = false
     skip(st, 128)
-    sig = ASCIIString(read(st,UInt8,4))
+    sig = String(read(st,UInt8,4))
     if sig != "DICM"
         error("dicom: invalid file header")
         # seek(st, 0)
@@ -387,7 +391,7 @@ function dcm_parse(st)
     # a bit of a hack to detect explicit VR. seek past the first tag,
     # and check to see if a valid VR name is there
     skip(st, 4)
-    sig = ASCIIString(read(st,UInt8,2))
+    sig = String(read(st,UInt8,2))
     evr = sig in VR_names
     skip(st, -6)
     data = Any[]
@@ -411,6 +415,7 @@ function dcm_parse(st)
             end
         end
     end
+    close(st)
     return data
 end
 
