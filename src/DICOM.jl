@@ -170,17 +170,17 @@ function pixeldata_parse(st, sz, vr, dcm)
         dtype = UInt16
     end
     if !is(dcm,false)
-	# (40,16) defines number of rows
+	# (0028,0010) defines number of rows
         f = lookup(dcm, (0x0028,0x0010))
         if !is(f,false)
             xr = f.data[1][1]
         end
-	# (40,17) defines number of columns
+	# (0028,0011) defines number of columns
         f = lookup(dcm, (0x0028,0x0011))
         if !is(f,false)
             yr = f.data[1][1]
         end
-	# (40,18) defines number of planes
+	# (0028,0012) defines number of planes
         f = lookup(dcm, (0x0028,0x0012))
         if !is(f,false)
             zr = f.data[1][1]
@@ -453,6 +453,5 @@ function dcm_write(st, d)
         element_write(st, evr, el)
     end
 end
-
 
 end
