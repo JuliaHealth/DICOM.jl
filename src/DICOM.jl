@@ -215,13 +215,15 @@ function pixeldata_write(st, evr, el)
     end
 end
 
-function skip_spaces(st)
-    while true
+function skip_spaces(st, limit)
+    while limit > 0
         c = read(st,Char)
+        limit -= 1
         if c != ' '
             return c
         end
     end
+    return '\0'
 end
 
 function string_parse(st, sz, maxlen, spaces)
@@ -229,7 +231,7 @@ function string_parse(st, sz, maxlen, spaces)
     data = [ "" ]
     first = true
     while position(st) < endpos
-        c = !first||spaces ? read(st,Char) : skip_spaces(st)
+        c = !first||spaces ? read(st,Char) : skip_spaces(st, sz) # ignore maxlen?
         if c == '\\'
             push!(data, "")
             first = true
