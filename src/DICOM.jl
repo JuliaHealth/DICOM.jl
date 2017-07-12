@@ -101,11 +101,11 @@ function undefined_length(st, vr)
     takebuf_array(data)
 end
 
-function sequence_item(st, evr, sz)
+function sequence_item(st, evr, sz, endian)
     item = Any[]
     endpos = position(st) + sz
     while position(st) < endpos
-        elt = element(st, evr)
+        elt = element(st, evr, endian)
         if isequal(elt.tag, (0xFFFE,0xE00D))
             break
         end
@@ -121,19 +121,19 @@ function sequence_item_write(st, evr, item)
     write(st, UInt16[0xFFFE, 0xE00D, 0x0000, 0x0000])
 end
 
-function sequence_parse(st, evr, sz)
+function sequence_parse(st, evr, sz, endian)
     sq = Any[]
     while sz > 0
-        grp = read(st, UInt16)
-        elt = read(st, UInt16)
-        itemlen = read(st, UInt32)
+        grp = order(read(st, UInt16), endian)
+        elt = order(read(st, UInt16), endian)
+        itemlen = order(read(st, UInt32), endian)
         if grp==0xFFFE && elt==0xE0DD
             return sq
         end
         if grp != 0xFFFE || elt != 0xE000
             error("dicom: expected item tag in sequence")
         end
-        push!(sq, sequence_item(st, evr, itemlen))
+        push!(sq, sequence_item(st, evr, itemlen, endian))
         sz -= 8 + (itemlen != 0xffffffff) * itemlen
     end
     return sq
@@ -147,8 +147,7 @@ function sequence_write(st, evr, item)
 end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
-pixeldata_parse(st, sz, vr) = pixeldata_parse(st, sz, vr, false)
-function pixeldata_parse(st, sz, vr, dcm)
+function pixeldata_parse(st, sz, vr, dcm=false)
     yr=1
     zr=1
     if vr=="OB"
@@ -249,8 +248,14 @@ end
 
 numeric_parse(st, T, sz) = [read(st, T) for i=1:div(sz,sizeof(T))]
 
-element(st, evr) = element(st, evr, false)
-function element(st, evr, dcm)
+if ENDIAN_BOM == 0x04030201
+  order(x, endian) = endian == :little ? x : bswap.(x)
+else
+  order(x, endian) = endian == :big ? x : bswap.(x)
+end
+
+
+function element(st, evr, endian=:little, dcm=false)
     lentype = UInt32
     diffvr = false
     local grp
@@ -259,7 +264,11 @@ function element(st, evr, dcm)
     catch
         return false
     end
-    elt = read(st, UInt16)
+    if grp == 2
+        endian = :little
+    end
+    grp = order(grp, endian)
+    elt = order(read(st, UInt16), endian)
     gelt = (grp,elt)
     if evr && !always_implicit(grp,elt)
         vr = String(read(st, UInt8, 2))
@@ -283,36 +292,36 @@ function element(st, evr, dcm)
         error("dicom: unknown tag ", gelt)
     end
 
-    sz = read(st,lentype)
+    sz = order(read(st,lentype), endian)
 
     data =
     vr=="ST" || vr=="LT" || vr=="UT" ? string(read(st, UInt8, sz)) :
 
     sz==0 || vr=="XX" ? Any[] :
 
-    vr == "SQ" ? sequence_parse(st, evr, sz) :
+    vr == "SQ" ? sequence_parse(st, evr, sz, endian) :
 
     gelt == (0x7FE0,0x0010) ? pixeldata_parse(st, sz, vr, dcm) :
 
     sz == 0xffffffff ? undefined_length(st, vr) :
 
-    vr == "FL" ? numeric_parse(st, Float32, sz) :
-    vr == "FD" ? numeric_parse(st, Float64, sz) :
-    vr == "SL" ? numeric_parse(st, Int32  , sz) :
-    vr == "SS" ? numeric_parse(st, Int16  , sz) :
-    vr == "UL" ? numeric_parse(st, UInt32 , sz) :
-    vr == "US" ? numeric_parse(st, UInt16 , sz) :
+    vr == "FL" ? order(numeric_parse(st, Float32, sz), endian) :
+    vr == "FD" ? order(numeric_parse(st, Float64, sz), endian) :
+    vr == "SL" ? order(numeric_parse(st, Int32  , sz), endian) :
+    vr == "SS" ? order(numeric_parse(st, Int16  , sz), endian) :
+    vr == "UL" ? order(numeric_parse(st, UInt32 , sz), endian) :
+    vr == "US" ? order(numeric_parse(st, UInt16 , sz), endian) :
 
-    vr == "OB" ? read(st, UInt8  , sz)        :
-    vr == "OF" ? read(st, Float32, div(sz,4)) :
-    vr == "OW" ? read(st, UInt16 , div(sz,2)) :
+    vr == "OB" ? order(read(st, UInt8  , sz),endian)        :
+    vr == "OF" ? order(read(st, Float32, div(sz,4)), endian) :
+    vr == "OW" ? order(read(st, UInt16 , div(sz,2)), endian) :
 
-    vr == "AT" ? [ read(st,UInt16,2) for n=1:div(sz,4) ] :
+    vr == "AT" ? [ order(read(st,UInt16,2), endian) for n=1:div(sz,4) ] :
 
     vr == "AS" ? String(read(st,UInt8,4)) :
 
-    vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)) :
-    vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)) :
+    vr == "DS" ? map(x->x=="" ? 0. : parse(Float64,x), string_parse(st, sz, 16, false)) :
+    vr == "IS" ? map(x->x=="" ? 0  : parse(Int,x), string_parse(st, sz, 12, false)) :
 
     vr == "AE" ? string_parse(st, sz, 16, false) :
     vr == "CS" ? string_parse(st, sz, 16, false) :
@@ -395,8 +404,10 @@ function dcm_parse(fn)
     evr = sig in VR_names
     skip(st, -6)
     data = Any[]
+    endian = :little
     while true
-        fld = element(st, evr, data)
+        fld = element(st, evr, endian, data)
+
         if is(fld,false)
             return data
         else
@@ -404,13 +415,13 @@ function dcm_parse(fn)
         end
         # look for transfer syntax UID
         if fld.tag == (0x0002,0x0010)
-            fld = get(meta_uids, fld.data[1], false)
+            fld = get(meta_uids, fld.data[1][1], false)
             if !is(fld,false)
                 evr = fld[2]
                 if fld[1]
-                    # todo: set byte order to big
+                    endian = :big
                 else
-                    # todo: set byte order to little
+                    endian = :little
                 end
             end
         end
