@@ -15,7 +15,18 @@ end
 const dcm_dict = dcm_init()
 _dcmdict_data_ = 0
 
-function lookup_vr(gelt)
+"""
+    lookup_vr(tag::Tuple{Integer,Integer})
+    
+Return VR value for tag from DICOM dictionary
+
+# Example
+```jldoctest
+julia> lookup_vr((0x0028,0x0004))
+"CS"
+```
+"""
+function lookup_vr(gelt::Tuple{Integer,Integer})
     if gelt[1]&0xff00 == 0x5000
         gelt = (0x5000,gelt[2])
     elseif gelt[1]&0xff00 == 0x6000
@@ -169,6 +180,7 @@ function pixeldata_parse(st, sz, vr, dcm)
         if !is(f,false)
             yr = f.data[1][1]
         end
+	# (0028,0012) defines number of planes
         f = lookup(dcm, (0x0028,0x0012))
         if !is(f,false)
             zr = f.data[1][1]
@@ -249,6 +261,8 @@ end
 
 numeric_parse(st, T, sz) = [read(st, T) for i=1:div(sz,sizeof(T))]
 
+# used internally to take a stream st that is reading a DICOM header
+# returns DcmElt
 element(st, evr) = element(st, evr, false)
 function element(st, evr, dcm)
     lentype = UInt32
@@ -379,7 +393,12 @@ function element_write(st, evr, el::DcmElt)
     dcm_store(st, gelt[1], gelt[2], s->write(s, data), evr)
 end
 
-function dcm_parse(fn)
+"""
+    dcm_parse(fn::AbstractString)
+    
+Reads file fn and returns an Array of DcmElt 
+"""
+function dcm_parse(fn::AbstractString)
     st = open(fn)
     evr = false
     skip(st, 128)
@@ -434,4 +453,5 @@ function dcm_write(st, d)
         element_write(st, evr, el)
     end
 end
+
 end
