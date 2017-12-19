@@ -33,7 +33,7 @@ function lookup_vr(gelt::Tuple{Integer,Integer})
         gelt = (0x6000,gelt[2])
     end
     r = get(dcm_dict, gelt, false)
-    !is(r,false) && r[2]
+    r !== false && r[2]
 end
 
 type DcmElt
@@ -70,7 +70,7 @@ function dcm_store(st, grp, elt, writef, vr)
     lentype = UInt32
     write(st, UInt16(grp))
     write(st, UInt16(elt))
-    if !is(vr,false)
+    if vr !== false
         write(st, vr)
         if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
             write(st, UInt16(0))
@@ -169,20 +169,20 @@ function pixeldata_parse(st, sz, vr, dcm)
         xr = div(sz,2)
         dtype = UInt16
     end
-    if !is(dcm,false)
+    if dcm !== false
 	# (0028,0010) defines number of rows
         f = lookup(dcm, (0x0028,0x0010))
-        if !is(f,false)
+        if f !== false
             xr = f.data[1][1]
         end
 	# (0028,0011) defines number of columns
         f = lookup(dcm, (0x0028,0x0011))
-        if !is(f,false)
+        if f !== false
             yr = f.data[1][1]
         end
 	# (0028,0012) defines number of planes
         f = lookup(dcm, (0x0028,0x0012))
-        if !is(f,false)
+        if f !== false
             zr = f.data[1][1]
         end
     end
@@ -202,7 +202,7 @@ function pixeldata_parse(st, sz, vr, dcm)
             if grp != 0xFFFE || elt != 0xE000
                 error("dicom: expected item tag in encapsulated pixel data")
             end
-            if is(dtype,UInt16); xr = div(xr,2); end
+            if dtype === UInt16; xr = div(xr,2); end
             push!(data, read!(st, Array(dtype, xr)))
         end
     end
@@ -215,11 +215,11 @@ function pixeldata_write(st, evr, el)
     end
     d = el[1]
     nt = eltype(d)
-    vr = is(nt,UInt8)  || is(nt,Int8)  ? "OB" :
-         is(nt,UInt16) || is(nt,Int16) ? "OW" :
-         is(nt,Float32)                ? "OF" :
+    vr = nt === UInt8  || nt === Int8  ? "OB" :
+         nt === UInt16 || nt === Int16 ? "OW" :
+         nt === Float32                ? "OF" :
          error("dicom: unsupported pixel format")
-    if !is(evr,false)
+    if evr !== false
         dcm_store(st, 0x7FE0, 0x0010, s->write(s,d), vr)
     elseif vr != "OW"
         error("dicom: implicit VR only supports 16-bit pixels")
@@ -293,7 +293,7 @@ function element(st, evr, dcm)
         # Assume private
         vr = "UN"
     end
-    if is(vr,false)
+    if vr === false
         error("dicom: unknown tag ", gelt)
     end
 
@@ -360,14 +360,14 @@ function element_write(st, evr, el::DcmElt)
         vr = el.vr
     else
         vr = lookup_vr(el.tag)
-        if is(vr,false)
+        if vr === false
             error("dicom: unknown tag ", gelt)
         end
     end
     if el.tag == (0x7FE0, 0x0010)
         return pixeldata_write(st, evr, el.data)
     end
-    if !is(evr,false)
+    if evr !== false
         evr = vr
     end
     el = el.data
@@ -416,7 +416,7 @@ function dcm_parse(fn::AbstractString)
     data = Any[]
     while true
         fld = element(st, evr, data)
-        if is(fld,false)
+        if fld === false
             return data
         else
             push!(data, fld)
@@ -424,7 +424,7 @@ function dcm_parse(fn::AbstractString)
         # look for transfer syntax UID
         if fld.tag == (0x0002,0x0010)
             fld = get(meta_uids, fld.data[1], false)
-            if !is(fld,false)
+            if fld !== false
                 evr = fld[2]
                 if fld[1]
                     # todo: set byte order to big
