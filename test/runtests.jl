@@ -1,8 +1,7 @@
 using DICOM
 
-filename = tempname()*".zip"
-dir = tempname()
-mkpath(dir)
+dir = mktempdir()
+filename = joinpath(dir,"dicomTestData.zip")
 
 download("http://www.dclunie.com/images/pixelspacingtestimages.zip", filename)
 run(`unzip $filename -d $dir`)
