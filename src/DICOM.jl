@@ -12,7 +12,17 @@ function dcm_init()
     dcm_dict
 end
 
+# Dict for looking up DICOM Tag (Tuple) from the fieldname (String)
+function fieldname_init()
+    fieldname_dict = Dict{AbstractString, Tuple{UInt16,UInt16}}()
+    for d in (_dcmdict_data_::Array{Any,1})
+        fieldname_dict[d[2]] = (UInt16(d[1][1]),UInt16(d[1][2]))
+    end
+    return(fieldname_dict)
+end
+
 const dcm_dict = dcm_init()
+const fieldname_dict = fieldname_init()
 _dcmdict_data_ = 0
 
 """
@@ -44,13 +54,17 @@ type DcmElt
 end
 
 # takes dcm and tag (specify type?)
-function lookup(d, t)
+function lookup(d, t::Tuple)
     for el in d
         if isequal(el.tag,t)
             return el
         end
     end
     return false
+end
+
+function lookup(d, fieldnameString::String)
+    return(lookup(d, fieldname_dict[fieldnameString]))
 end
 
 always_implicit(grp, elt) = (grp == 0xFFFE && (elt == 0xE0DD||elt == 0xE000||
