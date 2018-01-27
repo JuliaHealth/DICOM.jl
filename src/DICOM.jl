@@ -260,10 +260,10 @@ function pixeldata_write(st, evr, d)
     end
 end
 
-function skip_spaces(st)
+function skip_spaces(st, endpos)
     while true
         c = read(st,Char)
-        if c != ' '
+        if c != ' ' || position(st) == endpos
             return c
         end
     end
@@ -274,7 +274,7 @@ function string_parse(st, sz, maxlen, spaces)
     data = [ "" ]
     first = true
     while position(st) < endpos
-        c = !first||spaces ? read(st,Char) : skip_spaces(st)
+        c = !first||spaces ? read(st,Char) : skip_spaces(st, endpos)
         if c == '\\'
             push!(data, "")
             first = true
@@ -291,7 +291,7 @@ function string_parse(st, sz, maxlen, spaces)
     return data
 end
 
-numeric_parse(st, T, sz) = [read(st, T) for i=1:div(sz,sizeof(T))]
+numeric_parse(st::IOStream, T::DataType, sz) = T[read(st, T) for i=1:div(sz,sizeof(T))]
 
 function element(st::IOStream, evr::Bool, dcm=emptyDcmDict)
     lentype = UInt32
@@ -357,8 +357,8 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict)
 
     vr == "AS" ? String(read(st,UInt8,4)) :
 
-    vr == "DS" ? [map(x->parse(Float64,x), string_parse(st, sz, 16, false))] :
-    vr == "IS" ? [map(x->parse(Int,x), string_parse(st, sz, 12, false))] :
+    vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)):
+    vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)):
 
     vr == "AE" ? string_parse(st, sz, 16, false) :
     vr == "CS" ? string_parse(st, sz, 16, false) :
@@ -380,6 +380,9 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict)
     # Exception is "SQ", where array is part of structure
     if length(data) == 1 && vr != "SQ"
         data = data[1]
+        if length(data) == 1
+            data = data[1]
+        end
     end 
 
     # if diffvr
@@ -392,6 +395,7 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict)
 end
 
 # todo: support maxlen
+string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
 string_write(vals::String, maxlen) = string_write([vals], maxlen) 
 string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
 
