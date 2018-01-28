@@ -23,11 +23,15 @@ if !isfile(fileMR) && !isfile(fileMR) && !isfile(fileMR)
 end
 
 # Load dicom data
+dcmMR_partial = dcm_parse(fileMR, maxGrp=0x0008)
 dcmMR = dcm_parse(fileMR)
 dcmCT = dcm_parse(fileCT)
 (dcmMG, vrMG) = dcm_parse(joinpath(testdir, "DISCIMG/IMAGES/MGIMAGEA"), true)
 
 @testset "Loading DICOM data" begin
+    @test dcmMR_partial[(0x0008,0x0060)] == "MR"
+    @test haskey(dcmMR_partial, (0x7FE0,0x0010)) == false
+   
     @test dcmMR[(0x0008,0x0060)] == "MR"
     @test dcmCT[(0x0008,0x0060)] == "CT"
     @test dcmMG[(0x0008,0x0060)] == "MG"

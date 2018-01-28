@@ -37,7 +37,7 @@ const fieldname_dict = fieldname_init()
 _dcmdict_data_ = 0
 
 # These "empty" values are used internally. They are returned if a search fails.
-const emptyVR = "ZZ" # Can be any VR that doesn't exist
+const emptyVR = "" # Can be any VR that doesn't exist
 const emptyVR_lookup = ["", emptyVR, ""] # Used in lookup_vr as failure state
 const emptyTag = (0x0000,0x0000) 
 const emptyDcmDict = Dict(DICOM.emptyTag => nothing)
@@ -186,14 +186,21 @@ end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
 function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
+    # (0x0028,0x0103) defined Pixel Representation
+    isSigned = false
+    f = get(dcm, (0x0028,0x0103), nothing)
+    if f !== nothing
+        # Data is signed if f==1
+        isSigned = f == 1
+    end
     yr=1
     zr=1
     if vr=="OB"
         xr = sz
-        dtype = UInt8
+        dtype = isSigned ? Int8 : UInt8
     else
         xr = div(sz,2)
-        dtype = UInt16
+        dtype = isSigned ? Int16 : UInt16
     end
     # (0028,0010) defines number of rows
     f = get(dcm, (0x0028,0x0010), nothing)
@@ -449,16 +456,17 @@ end
     
 Reads file fn and returns a Dict 
 """
-function dcm_parse(fn::AbstractString, giveVR=false)
+function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff)
     st = open(fn)
-    evr = false
-    # First 128 bytes are preamble - should be skipped
-    skip(st, 128)
-    # "DICM" identifier must be after preamble
-    sig = String(read(st,UInt8,4))
-    if sig != "DICM"
-        error("dicom: invalid file header")
-        # seek(st, 0)
+    if header
+        # First 128 bytes are preamble - should be skipped
+        skip(st, 128)
+        # "DICM" identifier must be after preamble
+        sig = String(read(st,UInt8,4))
+        if sig != "DICM"
+            error("dicom: invalid file header")
+            # seek(st, 0)
+        end
     end
     # a bit of a hack to detect explicit VR. seek past the first tag,
     # and check to see if a valid VR name is there
@@ -473,12 +481,8 @@ function dcm_parse(fn::AbstractString, giveVR=false)
 
     while true
         (gelt, data, vr) = element(st, evr, dcm)
-        if gelt === emptyTag
-            if giveVR
-                return(dcm,dcmVR)
-            else
-                return(dcm)
-            end
+        if gelt === emptyTag || gelt[1] > maxGrp
+            break
         else
             dcm[gelt] = data
             if giveVR
@@ -523,11 +527,12 @@ function dcm_write(st::IOStream, d::Dict{Tuple{UInt16,UInt16},Any}, dVR=Dict{Tup
         metaInfo = get(meta_uids, d[(0x0002,0x0010)], (false, true))
         evr = metaInfo[2]
     end
-    # Possible cases: evr=true/false, dVR=empty/notEmpty. 
-    # Only time dVR is used is if evr=true & dVR is not empty
+    # dVR is only used if it isn't empty and evr=true
     if evr && !isempty(dVR)
         for gelt in sort(collect(keys(d)))
-            element_write(st, evr, gelt, d[gelt], dVR[gelt])
+            # dVR only needs to contain keys for cases where lookup_vr() fails
+            haskey(dVR, gelt) ? element_write(st, evr, gelt, d[gelt], dVR[gelt]) :
+                element_write(st, evr, gelt, d[gelt])
         end
     else
         for gelt in sort(collect(keys(d)))
