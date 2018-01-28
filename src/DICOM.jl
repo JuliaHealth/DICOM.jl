@@ -36,20 +36,11 @@ const dcm_dict = dcm_init()
 const fieldname_dict = fieldname_init()
 _dcmdict_data_ = 0
 
-# Composite type for storing DICOM entries/data in Julia
-type DcmElt
-    data::Any
-    vr::String    # "" except for non-standard VR
-    DcmElt(data,vr) = new(data,vr)
-    DcmElt(data) = new(data, "")
-end
-
 # These "empty" values are used internally. They are returned if a search fails.
 const emptyVR = "ZZ" # Can be any VR that doesn't exist
-const emptyVR_dict = ["", emptyVR, ""] # Used in lookup_vr as failure state
+const emptyVR_lookup = ["", emptyVR, ""] # Used in lookup_vr as failure state
 const emptyTag = (0x0000,0x0000) 
-const emptyDcmElt = DcmElt([0], "")
-const emptyDcmDict = Dict(DICOM.emptyTag => DICOM.emptyDcmElt)
+const emptyDcmDict = Dict(DICOM.emptyTag => nothing)
 
 const VR_names = [ "AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
        "OW","PN","SH","SL","SQ","SS","ST","TM","UI","UL","UN","US","UT" ]
@@ -77,12 +68,12 @@ function lookup_vr(gelt::Tuple{UInt16,UInt16})
     elseif gelt[1]&0xff00 == 0x6000
         gelt = (0x6000,gelt[2])
     end
-    r = get(dcm_dict, gelt, emptyVR_dict)
+    r = get(dcm_dict, gelt, emptyVR_lookup)
     return(r[2])
 end
 
-function lookup(d::Dict{Tuple{UInt16,UInt16},DICOM.DcmElt}, fieldnameString::String)
-    return(get(d, fieldname_dict[fieldnameString], emptyDcmElt))
+function lookup(d::Dict{Tuple{UInt16,UInt16},Any}, fieldnameString::String)
+    return(get(d, fieldname_dict[fieldnameString], nothing))
 end
 
 always_implicit(grp, elt) = (grp == 0xFFFE && (elt == 0xE0DD||elt == 0xE000||
@@ -147,19 +138,19 @@ function undefined_length(st, vr)
 end
 
 function sequence_item(st::IOStream, evr, sz)
-    item = Dict{Tuple{UInt16,UInt16},DcmElt}()
+    item = Dict{Tuple{UInt16,UInt16},Any}()
     endpos = position(st) + sz
     while position(st) < endpos
         (gelt, data, vr) = element(st, evr)
         if isequal(gelt, (0xFFFE,0xE00D))
             break
         end
-        item[gelt] = DcmElt(data,vr)
+        item[gelt] = data
     end
     return item
 end
 
-function sequence_item_write(st::IOStream, evr::Bool, items::Dict{Tuple{UInt16,UInt16},DICOM.DcmElt})
+function sequence_item_write(st::IOStream, evr::Bool, items::Dict{Tuple{UInt16,UInt16},Any})
     for gelt in sort(collect(keys(items)))
         element_write(st, evr, gelt, items[gelt])
     end
@@ -167,7 +158,7 @@ function sequence_item_write(st::IOStream, evr::Bool, items::Dict{Tuple{UInt16,U
 end
 
 function sequence_parse(st, evr, sz)
-    sq = Array{Dict{Tuple{UInt16,UInt16},DcmElt},1}()
+    sq = Array{Dict{Tuple{UInt16,UInt16},Any},1}()
     while sz > 0
         grp = read(st, UInt16)
         elt = read(st, UInt16)
@@ -184,7 +175,7 @@ function sequence_parse(st, evr, sz)
     return sq
 end
 
-function sequence_write(st::IOStream, evr::Bool, items::Array{Dict{Tuple{UInt16,UInt16},DICOM.DcmElt},1})
+function sequence_write(st::IOStream, evr::Bool, items::Array{Dict{Tuple{UInt16,UInt16},Any},1})
     for subitem in items
         if length(subitem) > 0
             dcm_store(st, (0xFFFE,0xE000), s->sequence_item_write(s, evr, subitem))
@@ -205,22 +196,23 @@ function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
         dtype = UInt16
     end
     # (0028,0010) defines number of rows
-    f = get(dcm, (0x0028,0x0010), emptyDcmElt)
-    if f !== emptyDcmElt
-        xr = f.data[1]
+    f = get(dcm, (0x0028,0x0010), nothing)
+    if f !== nothing
+        xr = f
     end
     # (0028,0011) defines number of columns
-    f = get(dcm, (0x0028,0x0011), emptyDcmElt)
-    if f !== emptyDcmElt
-        yr = f.data[1]
+    f = get(dcm, (0x0028,0x0011), nothing)
+    if f !== nothing
+        yr = f
     end
     # (0028,0012) defines number of planes
-    f = get(dcm, (0x0028,0x0012), emptyDcmElt)
-    if f !== emptyDcmElt
-        zr = f.data[1]
+    f = get(dcm, (0x0028,0x0012), nothing)
+    if f !== nothing
+        zr = f
     end
     if sz != 0xffffffff
-        data = Array{dtype}(xr, yr, zr)
+        data = 
+        zr > 1 ? Array{dtype}(xr, yr, zr) : Array{dtype}(xr, yr)
         read!(st, data)
     else
         # start with Basic Offset Table Item
@@ -399,45 +391,51 @@ string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
 string_write(vals::String, maxlen) = string_write([vals], maxlen) 
 string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
 
-function element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, el::DcmElt)
-    if el.vr != ""
-        vr = el.vr
-    else
-        vr = lookup_vr(gelt)
-        if vr === emptyVR
+element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any) = element_write(st,evr,gelt,data,lookup_vr(gelt))
+function element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any, vr::String)
+    if vr === emptyVR
+        # Element tags ending in 0x0000 are not included in dcm_dicm.jl, their vr is UL
+        if gelt[2] == 0x0000 
+            vr = "UL"
+        elseif isodd(gelt[1]) && gelt[1] > 0x0008 && 0x0010 <= gelt[2] <+ 0x00FF
+                # Private creator
+                vr = "LO"
+        elseif isodd(gelt[1]) && gelt[1] > 0x0008
+                # Assume private
+                vr = "UN"
+        else
             error("dicom: unknown tag ", gelt)
         end
     end
     if gelt == (0x7FE0, 0x0010)
-        return pixeldata_write(st, evr, el.data)
+        return pixeldata_write(st, evr, data)
     end
 
     if vr == "SQ"
         vr = evr ? vr : emptyVR
         return dcm_store(st, gelt,
-                         s->sequence_write(s, evr, el.data), vr)
+                         s->sequence_write(s, evr, data), vr)
     end
 
-    rawdata = el.data
     # Pack data into array container. This is to undo "data = data[1]" from element().
-    if length(rawdata) == 1 && vr in ("FL","FD","SL","SS","UL","US", "SQ")
-        rawdata =[rawdata]
+    if !isa(data,Array) && vr in ("FL","FD","SL","SS","UL","US")
+        data = [data]
     end
 
     data =
-    isempty(rawdata) ? UInt8[] :
-    vr in ("OB","OF","OW","ST","LT","UT") ? rawdata :
+    isempty(data) ? UInt8[] :
+    vr in ("OB","OF","OW","ST","LT","UT") ? data :
     vr in ("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM") ?
-        string_write(rawdata, 0) :
-    vr == "FL" ? convert(Array{Float32,1}, rawdata) :
-    vr == "FD" ? convert(Array{Float64,1}, rawdata) :
-    vr == "SL" ? convert(Array{Int32,1},   rawdata) :
-    vr == "SS" ? convert(Array{Int16,1},   rawdata) :
-    vr == "UL" ? convert(Array{UInt32,1},  rawdata) :
-    vr == "US" ? convert(Array{UInt16,1},  rawdata) :
-    vr == "AT" ? [rawdata...] :
-    vr in ("DS","IS") ? string_write(map(string,rawdata), 0) :
-    rawdata
+        string_write(data, 0) :
+    vr == "FL" ? convert(Array{Float32,1}, data) :
+    vr == "FD" ? convert(Array{Float64,1}, data) :
+    vr == "SL" ? convert(Array{Int32,1},   data) :
+    vr == "SS" ? convert(Array{Int16,1},   data) :
+    vr == "UL" ? convert(Array{UInt32,1},  data) :
+    vr == "US" ? convert(Array{UInt16,1},  data) :
+    vr == "AT" ? [data...] :
+    vr in ("DS","IS") ? string_write(map(string,data), 0) :
+    data
 
     if evr === false && gelt[1]>0x0002
         vr = emptyVR
@@ -449,9 +447,9 @@ end
 """
     dcm_parse(fn::AbstractString)
     
-Reads file fn and returns an Array of DcmElt 
+Reads file fn and returns a Dict 
 """
-function dcm_parse(fn::AbstractString)
+function dcm_parse(fn::AbstractString, giveVR=false)
     st = open(fn)
     evr = false
     # First 128 bytes are preamble - should be skipped
@@ -468,13 +466,24 @@ function dcm_parse(fn::AbstractString)
     sig = String(read(st,UInt8,2))
     evr = sig in VR_names
     skip(st, -6)
-    dcm = Dict{Tuple{UInt16,UInt16},DcmElt}()
+    dcm = Dict{Tuple{UInt16,UInt16},Any}()
+    if giveVR
+        dcmVR = Dict{Tuple{UInt16,UInt16},String}()
+    end
+
     while true
         (gelt, data, vr) = element(st, evr, dcm)
         if gelt === emptyTag
-            return dcm
+            if giveVR
+                return(dcm,dcmVR)
+            else
+                return(dcm)
+            end
         else
-            dcm[gelt] = DcmElt(data,vr)
+            dcm[gelt] = data
+            if giveVR
+                dcmVR[gelt] = vr
+            end
         end
         # look for transfer syntax UID
         if gelt == (0x0002,0x0010)
@@ -489,28 +498,43 @@ function dcm_parse(fn::AbstractString)
         end
     end
     close(st)
-    return data
+    if giveVR
+        return(dcm,dcmVR)
+    else
+        return(dcm)
+    end
 end
 
-function dcm_write(st::IOStream, d::Dict{Tuple{UInt16,UInt16},DICOM.DcmElt})
+dcm_write(fn::String, d::Dict{Tuple{UInt16,UInt16},Any}, dVR=Dict{Tuple{UInt16,UInt16},String}()) = dcm_write(open(fn,"w+"),d,dVR)
+function dcm_write(st::IOStream, d::Dict{Tuple{UInt16,UInt16},Any}, dVR=Dict{Tuple{UInt16,UInt16},String}())
     write(st, zeros(UInt8, 128))
     write(st, "DICM")
-    # If any elements specify a VR then use explicit VR syntax by default
-    evr = any(x->x.vr!="", values(d))
-    # Insert UID for our transfer syntax, if it doesn't exist. Otherwise, use existing UID
+    # If no dictionary containing VRs is provided, then assume implicit VR - at first
+    evr = !isempty(dVR)
     if !haskey(d,(0x0002,0x0010))
+        # Insert UID for our transfer syntax, if it doesn't exist
         if evr
-            element_write(st, evr, (0x0002,0x0010), DcmElt("1.2.840.10008.1.2.1", "UI"))
+            element_write(st, evr, (0x0002,0x0010), "1.2.840.10008.1.2.1", "UI")
         else
-            element_write(st, evr, (0x0002,0x0010), DcmElt("1.2.840.10008.1.2", "UI"))
+            element_write(st, evr, (0x0002,0x0010), "1.2.840.10008.1.2", "UI")
         end
     else
-        metaInfo = get(meta_uids, d[(0x0002,0x0010)].data, (false, true))
+        # Otherwise, use existing transfer UID, and overwrite evr accordingly
+        metaInfo = get(meta_uids, d[(0x0002,0x0010)], (false, true))
         evr = metaInfo[2]
     end
-    for gelt in sort(collect(keys(d)))
-        element_write(st, evr, gelt, d[gelt])
+    # Possible cases: evr=true/false, dVR=empty/notEmpty. 
+    # Only time dVR is used is if evr=true & dVR is not empty
+    if evr && !isempty(dVR)
+        for gelt in sort(collect(keys(d)))
+            element_write(st, evr, gelt, d[gelt], dVR[gelt])
+        end
+    else
+        for gelt in sort(collect(keys(d)))
+            element_write(st, evr, gelt, d[gelt])
+        end
     end
+    close(st)
 end
 
 end
