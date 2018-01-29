@@ -109,20 +109,26 @@ fileCT = joinpath(testdir, "CT-Implicit_Little_Headless_Retired")
 download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
 run(`gunzip -f $(fileCT*".gz")`)
 
-dVR_CT = Dict( 
+# 2a. With user-supplied VRs
+dVR_CTa = Dict( 
     (0x0008,0x0010) => "SH",
     (0x0008,0x0040) => "US",
     (0x0008,0x0041) => "LO",
-    (0x0018,0x1170) => "",
-    (0x0018,0x1190) => "",
-    (0x0020,0x0030) => "",
+    (0x0018,0x1170) => "DS",
+    (0x0020,0x0030) => "DS",
     (0x0020,0x0035) => "DS",
     (0x0020,0x0050) => "DS",
     (0x0020,0x0070) => "LO",
     (0x0028,0x0005) => "US",
     (0x0028,0x0040) => "CS",
     (0x0028,0x0200) => "US")
-dcmCT = dcm_parse(fileCT, header=false, dVR=dVR_CT);
+dcmCTa = dcm_parse(fileCT, header=false, dVR=dVR_CTa);
+
+# 2b. With a master VR which skips elements
+# Here we skip any element where lookup_vr() fails
+# And we also force (0x0018,0x1170) to be read as float instead of integer
+dVR_CTb = Dict( (0x0000,0x0000) => "",  (0x0018,0x1170) => "DS")
+dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
 
 # 3. Loading DICOM file containing multiple frames
 
@@ -135,6 +141,11 @@ dcmMR_multiframe = dcm_parse(fileMR_multiframe)
 
 @testset "Loading uncommon DICOM data" begin
     @test dcmOT[(0x0008,0x0060)] == "OT"
-    @test dcmCT[(0x0008,0x0060)] == "CT"
+    
+    @test dcmCTa[(0x0008,0x0060)] == "CT"
+    @test dcmCTb[(0x0008,0x0060)] == "CT"
+    @test haskey(dcmCTa, (0x0028,0x0040)) # dcmCTa should contain retired element
+    @test !haskey(dcmCTb, (0x0028,0x0040)) # dcmCTb skips retired elements
+
     @test dcmMR_multiframe[(0x0008,0x0060)] == "MR"
 end

@@ -342,7 +342,11 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
         vr = dVR[gelt]
     end
     if vr === emptyVR
-        error("dicom: unknown tag ", gelt)
+        if haskey(dVR, (0x0000,0x0000))
+            vr = dVR[(0x0000,0x0000)]
+        elseif !haskey(dVR, gelt)
+            error("dicom: unknown tag ", gelt)
+        end
     end
 
     sz = read(st,lentype)
