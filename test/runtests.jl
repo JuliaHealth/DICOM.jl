@@ -7,6 +7,8 @@ if !isdir(testdir)
     mkdir(testdir)
 end
 
+# TEST SET 1: Simple Reading/Writing
+
 fileMR = joinpath(testdir, "MR_Implicit_Little")
 fileCT = joinpath(testdir, "CT_Explicit_Little")
 fileMG = joinpath(testdir, "MG_Explicit_Little.zip")
@@ -14,7 +16,7 @@ fileMG = joinpath(testdir, "MG_Explicit_Little.zip")
 # Don't download files if they already exist
 if !isfile(fileMR) && !isfile(fileMR) && !isfile(fileMR)
     download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-16-head.gz", fileMR*".gz")
-    download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-16-ankle.gz", fileCT*".gz")
+    download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-16-brain.gz", fileCT*".gz")
     download("http://www.dclunie.com/images/pixelspacingtestimages.zip", fileMG)
 
     run(`gunzip -f $(fileMR*".gz")`)
@@ -91,4 +93,38 @@ dcmCT1 = dcm_parse(outCT1)
     # Test lookup-by-fieldname; cross-compare dcmMR with dcmMR1
     @test dcmMR1[(0x0008,0x0060)] == lookup(dcmMR, "Modality")
     @test dcmMR1[(0x7FE0,0x0010)] == lookup(dcmMR, "Pixel Data")
+end
+
+# TEST SET 2: Reading uncommon datasets
+
+# 1. Loading DICOM file with missing header
+fileOT = joinpath(testdir, "OT_Implicit_Little_Headless")
+download("http://www.barre.nom.fr/medical/samples/files/OT-MONO2-8-a7.gz", fileOT*".gz")
+run(`gunzip -f $(fileOT*".gz")`)
+
+dcmOT = dcm_parse(fileOT, header=false)
+
+# 2. Loading DICOM file with missing header and retired DICOM elements
+fileCT = joinpath(testdir, "CT-Implicity_Little_Headless_Retired")
+download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
+run(`gunzip -f $(fileCT*".gz")`)
+
+dVR_CT = Dict( 
+    (0x0008,0x0010) => "SH",
+    (0x0008,0x0040) => "US",
+    (0x0008,0x0041) => "LO",
+    (0x0018,0x1170) => "",
+    (0x0018,0x1190) => "",
+    (0x0020,0x0030) => "",
+    (0x0020,0x0035) => "DS",
+    (0x0020,0x0050) => "DS",
+    (0x0020,0x0070) => "LO",
+    (0x0028,0x0005) => "US",
+    (0x0028,0x0040) => "CS",
+    (0x0028,0x0200) => "US")
+dcmCT = dcm_parse(fileCT, header=false, dVR=dVR_CT);
+
+@testset "Loading uncommon DICOM data" begin
+    @test dcmOT[(0x0008,0x0060)] == "OT"
+    @test dcmCT[(0x0008,0x0060)] == "CT"
 end
