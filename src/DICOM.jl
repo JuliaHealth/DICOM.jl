@@ -193,11 +193,10 @@ function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
         # Data is signed if f==1
         isSigned = f == 1
     end
-    # (0x0028,0x0100) defines Pixel Representation
+    # (0x0028,0x0100) defines Bits Allocated
     bitType = 16
     f = get(dcm, (0x0028,0x0100), nothing)
     if f !== nothing
-        # Data is signed if f==1
         bitType = Int(f)
     else 
         f = get(dcm, (0x0028,0x0101), nothing)

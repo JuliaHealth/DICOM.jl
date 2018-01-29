@@ -105,7 +105,7 @@ run(`gunzip -f $(fileOT*".gz")`)
 dcmOT = dcm_parse(fileOT, header=false)
 
 # 2. Loading DICOM file with missing header and retired DICOM elements
-fileCT = joinpath(testdir, "CT-Implicity_Little_Headless_Retired")
+fileCT = joinpath(testdir, "CT-Implicit_Little_Headless_Retired")
 download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
 run(`gunzip -f $(fileCT*".gz")`)
 
@@ -124,7 +124,17 @@ dVR_CT = Dict(
     (0x0028,0x0200) => "US")
 dcmCT = dcm_parse(fileCT, header=false, dVR=dVR_CT);
 
+# 3. Loading DICOM file containing multiple frames
+
+fileMR_multiframe = joinpath(testdir, "MR-Explicit_Little_MultiFrame")
+dlFile = "MR-heart.gz"
+download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
+run(`gunzip -f $(fileMR_multiframe*".gz")`)
+
+dcmMR_multiframe = dcm_parse(fileMR_multiframe)
+
 @testset "Loading uncommon DICOM data" begin
     @test dcmOT[(0x0008,0x0060)] == "OT"
     @test dcmCT[(0x0008,0x0060)] == "CT"
+    @test dcmMR_multiframe[(0x0008,0x0060)] == "MR"
 end
