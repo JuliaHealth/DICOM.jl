@@ -186,36 +186,51 @@ end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
 function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
-    # (0x0028,0x0103) defined Pixel Representation
+    # (0x0028,0x0103) defines Pixel Representation
     isSigned = false
     f = get(dcm, (0x0028,0x0103), nothing)
     if f !== nothing
         # Data is signed if f==1
         isSigned = f == 1
     end
-    yr=1
-    zr=1
-    if vr=="OB"
-        xr = sz
+    # (0x0028,0x0100) defines Pixel Representation
+    bitType = 16
+    f = get(dcm, (0x0028,0x0100), nothing)
+    if f !== nothing
+        # Data is signed if f==1
+        bitType = Int(f)
+    else 
+        f = get(dcm, (0x0028,0x0101), nothing)
+        bitType = f !== nothing ? Int(f) : 
+            vr == "OB" ? 8 : 16
+    end
+    if bitType == 8
         dtype = isSigned ? Int8 : UInt8
     else
-        xr = div(sz,2)
         dtype = isSigned ? Int16 : UInt16
     end
+
+    yr=1
+    zr=1
     # (0028,0010) defines number of rows
     f = get(dcm, (0x0028,0x0010), nothing)
     if f !== nothing
-        xr = f
+        xr = Int(f)
     end
     # (0028,0011) defines number of columns
     f = get(dcm, (0x0028,0x0011), nothing)
     if f !== nothing
-        yr = f
+        yr = Int(f)
     end
     # (0028,0012) defines number of planes
     f = get(dcm, (0x0028,0x0012), nothing)
     if f !== nothing
-        zr = f
+        zr = Int(f)
+    end
+    # (0028,0008) defines number of frames
+    f = get(dcm, (0x0028,0x0008), nothing)
+    if f !== nothing
+        zr *= Int(f)
     end
     if sz != 0xffffffff
         data = 
@@ -223,7 +238,7 @@ function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
         read!(st, data)
     else
         # start with Basic Offset Table Item
-        data = Array{Any,1}(element(st, false))
+        data = Array{Any,1}(element(st, false)[2])
         while true
             grp = read(st, UInt16)
             elt = read(st, UInt16)
@@ -292,7 +307,7 @@ end
 
 numeric_parse(st::IOStream, T::DataType, sz) = T[read(st, T) for i=1:div(sz,sizeof(T))]
 
-function element(st::IOStream, evr::Bool, dcm=emptyDcmDict)
+function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt16},String}())
     lentype = UInt32
     diffvr = false
     local grp
@@ -324,11 +339,21 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict)
         # Assume private
         vr = "UN"
     end
+    if haskey(dVR, gelt)
+        vr = dVR[gelt]
+    end
     if vr === emptyVR
         error("dicom: unknown tag ", gelt)
     end
 
     sz = read(st,lentype)
+
+    # Empty VR can be supplied in dVR to skip an element
+    if vr == ""
+        sz = isodd(sz) ? sz+1 : sz
+        skip(st,sz)
+        return(element(st,evr,dcm,dVR))
+    end
 
     data =
     vr=="ST" || vr=="LT" || vr=="UT" ? String(read(st, UInt8, sz)) :
@@ -383,13 +408,8 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict)
             data = data[1]
         end
     end 
-
-    # if diffvr
-    #     # record non-standard VR
-    #     return(gelt, data, vr)
-    # end
     
-    # Saving vr by default
+    # Return vr by default
     return(gelt, data, vr)   
 end
 
@@ -456,7 +476,7 @@ end
     
 Reads file fn and returns a Dict 
 """
-function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff)
+function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff, dVR=Dict{Tuple{UInt16,UInt16},String}())
     st = open(fn)
     if header
         # First 128 bytes are preamble - should be skipped
@@ -480,7 +500,7 @@ function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff)
     end
 
     while true
-        (gelt, data, vr) = element(st, evr, dcm)
+        (gelt, data, vr) = element(st, evr, dcm, dVR)
         if gelt === emptyTag || gelt[1] > maxGrp
             break
         else
