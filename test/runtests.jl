@@ -133,7 +133,6 @@ dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
 # 3. Loading DICOM file containing multiple frames
 
 fileMR_multiframe = joinpath(testdir, "MR-Explicit_Little_MultiFrame")
-dlFile = "MR-heart.gz"
 download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
 run(`gunzip -f $(fileMR_multiframe*".gz")`)
 

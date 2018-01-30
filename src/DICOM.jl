@@ -384,8 +384,8 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
 
     vr == "AS" ? String(read(st,UInt8,4)) :
 
-    vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)):
-    vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)):
+    vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)) :
+    vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)) :
 
     vr == "AE" ? string_parse(st, sz, 16, false) :
     vr == "CS" ? string_parse(st, sz, 16, false) :
@@ -417,6 +417,8 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
 end
 
 # todo: support maxlen
+string_write(vals::Array{SubString{String}}, maxlen) = string_write(convert(Array{String}, vals), maxlen)
+string_write(vals::SubString{String}, maxlen) = string_write(convert(String, vals), maxlen)
 string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
 string_write(vals::String, maxlen) = string_write([vals], maxlen) 
 string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
