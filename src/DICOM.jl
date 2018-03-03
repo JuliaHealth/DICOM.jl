@@ -1,65 +1,91 @@
-module DICOM
-
-include("dcm_dict.jl")
+module DICOM  
 
 export dcm_parse, dcm_write, lookup, lookup_vr
 
+include("dcm_dict.jl")
+
+# Create dicom dictionary - used for reading/writing DICOM files
+# Keys are tuple containing hex Group and Element of DICOM entry
+# Stored value is String array: [Field Name, VR, Data Length], e.g:
+# Julia> DICOM.dcm_dict[(0x0008,0x0005)]
+# 3-element Array{String,1}:
+#  "Specific Character Set"
+#  "CS"
+#  "1-n"
 function dcm_init()
-    dcm_dict = Dict()
+    dcm_dict = Dict{Tuple{UInt16,UInt16},Array{String,1}}()
     for d in (_dcmdict_data_::Array{Any,1})
         dcm_dict[(UInt16(d[1][1]),UInt16(d[1][2]))] = d[2:end]
     end
-    dcm_dict
+    return(dcm_dict)
+end
+
+
+# For convenience, dictionary to get hex tag from field name, e.g:
+# Julia> DICOM.fieldname_dict["Specific Character Set"]
+# (0x0008, 0x0005)
+function fieldname_init()
+    fieldname_dict = Dict{AbstractString, Tuple{UInt16,UInt16}}()
+    for d in (_dcmdict_data_::Array{Any,1})
+        fieldname_dict[d[2]] = (UInt16(d[1][1]),UInt16(d[1][2]))
+    end
+    return(fieldname_dict)
 end
 
 const dcm_dict = dcm_init()
+const fieldname_dict = fieldname_init()
 _dcmdict_data_ = 0
 
-function lookup_vr(gelt)
+# These "empty" values are used internally. They are returned if a search fails.
+const emptyVR = "" # Can be any VR that doesn't exist
+const emptyVR_lookup = ["", emptyVR, ""] # Used in lookup_vr as failure state
+const emptyTag = (0x0000,0x0000) 
+const emptyDcmDict = Dict(DICOM.emptyTag => nothing)
+
+const VR_names = [ "AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
+       "OW","PN","SH","SL","SQ","SS","ST","TM","UI","UL","UN","US","UT" ]
+
+# mapping UID => bigendian? explicitvr?
+const meta_uids = Dict([("1.2.840.10008.1.2", (false, false)),
+                  ("1.2.840.10008.1.2.1", (false, true)),
+                  ("1.2.840.10008.1.2.1.99", (false, true)),
+                  ("1.2.840.10008.1.2.2", (true, true))]);
+       
+"""
+    lookup_vr(tag::Tuple{Integer,Integer})
+    
+Return VR value for tag from DICOM dictionary
+
+# Example
+```jldoctest
+julia> lookup_vr((0x0028,0x0004))
+"CS"
+```
+"""
+function lookup_vr(gelt::Tuple{UInt16,UInt16})
     if gelt[1]&0xff00 == 0x5000
         gelt = (0x5000,gelt[2])
     elseif gelt[1]&0xff00 == 0x6000
         gelt = (0x6000,gelt[2])
     end
-    r = get(dcm_dict, gelt, false)
-    !is(r,false) && r[2]
+    r = get(dcm_dict, gelt, emptyVR_lookup)
+    return(r[2])
 end
 
-type DcmElt
-    tag::(Tuple{UInt16,UInt16})
-    data::Array{Any,1}
-    vr::String    # "" except for non-standard VR
-    DcmElt(tag, data) = new(tag,data,"")
-end
-
-# takes dcm and tag (specify type?)
-function lookup(d, t)
-    for el in d
-        if isequal(el.tag,t)
-            return el
-        end
-    end
-    return false
+function lookup(d::Dict{Tuple{UInt16,UInt16},Any}, fieldnameString::String)
+    return(get(d, fieldname_dict[fieldnameString], nothing))
 end
 
 always_implicit(grp, elt) = (grp == 0xFFFE && (elt == 0xE0DD||elt == 0xE000||
                                                elt == 0xE00D))
 
-VR_names = [ "AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
-       "OW","PN","SH","SL","SQ","SS","ST","TM","UI","UL","UN","US","UT" ]
 
-# mapping UID => bigendian? explicitvr?
-meta_uids = Dict([("1.2.840.10008.1.2", (false, false)),
-                  ("1.2.840.10008.1.2.1", (false, true)),
-                  ("1.2.840.10008.1.2.1.99", (false, true)),
-                  ("1.2.840.10008.1.2.2", (true, true))])
-
-dcm_store(st, grp, elt, writef) = dcm_store(st, grp, elt, writef, false)
-function dcm_store(st, grp, elt, writef, vr)
+dcm_store(st::IOStream, gelt::Tuple{UInt16,UInt16}, writef::Function) = dcm_store(st, gelt, writef, emptyVR)
+function dcm_store(st::IOStream, gelt::Tuple{UInt16,UInt16}, writef::Function, vr::String)
     lentype = UInt32
-    write(st, UInt16(grp))
-    write(st, UInt16(elt))
-    if !is(vr,false)
+    write(st, UInt16(gelt[1])) # Grp
+    write(st, UInt16(gelt[2])) # Elt
+    if vr !== emptyVR
         write(st, vr)
         if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
             write(st, UInt16(0))
@@ -67,15 +93,25 @@ function dcm_store(st, grp, elt, writef, vr)
             lentype = UInt16
         end
     end
+    # Write data first, then calculate length, then go back to write length
     p = position(st)
-    write(st, zero(lentype))
+    write(st, zero(lentype)) # Placeholder for the data length
     writef(st)
     endp = position(st)
-    sz = endp-p-4
+    # Remove placeholder's length, either 2 (UInt16) or 4 (UInt32) steps (1 step = 8 bits)
+    if lentype == UInt32
+        sz = endp-p-4
+    else
+        sz = endp-p-2
+    end
+    szWasOdd = isodd(sz) # If length is odd, round up - UInt8(0) will be written at end
+    if szWasOdd
+        sz+=1
+    end
     seek(st, p)
-    write(st, convert(lentype, sz))
+    write(st, convert(lentype, max(0,sz)))
     seek(st, endp)
-    if isodd(sz)
+    if szWasOdd
         write(st, UInt8(0))
     end
 end
@@ -101,28 +137,29 @@ function undefined_length(st, vr)
     takebuf_array(data)
 end
 
-function sequence_item(st, evr, sz, endian)
-    item = Any[]
+
+function sequence_item(st::IOStream, evr, sz,endian)
+    item = Dict{Tuple{UInt16,UInt16},Any}()
     endpos = position(st) + sz
     while position(st) < endpos
-        elt = element(st, evr, endian)
-        if isequal(elt.tag, (0xFFFE,0xE00D))
+          (gelt, data, vr) = element(st, evr,endian)
+        if isequal(gelt, (0xFFFE,0xE00D))
             break
         end
-        push!(item, elt)
+        item[gelt] = data
     end
     return item
 end
 
-function sequence_item_write(st, evr, item)
-    for el in item
-        element_write(st, evr, el)
+function sequence_item_write(st::IOStream, evr::Bool, items::Dict{Tuple{UInt16,UInt16},Any})
+    for gelt in sort(collect(keys(items)))
+        element_write(st, evr, gelt, items[gelt])
     end
     write(st, UInt16[0xFFFE, 0xE00D, 0x0000, 0x0000])
 end
 
-function sequence_parse(st, evr, sz, endian)
-    sq = Any[]
+function sequence_parse(st, evr, sz,endian)
+    sq = Array{Dict{Tuple{UInt16,UInt16},Any},1}()
     while sz > 0
         grp = order(read(st, UInt16), endian)
         elt = order(read(st, UInt16), endian)
@@ -139,46 +176,68 @@ function sequence_parse(st, evr, sz, endian)
     return sq
 end
 
-function sequence_write(st, evr, item)
-    for el in item
-        dcm_store(st, 0xFFFE, 0xE000, s->sequence_item_write(s, evr, el))
+function sequence_write(st::IOStream, evr::Bool, items::Array{Dict{Tuple{UInt16,UInt16},Any},1})
+    for subitem in items
+        if length(subitem) > 0
+            dcm_store(st, (0xFFFE,0xE000), s->sequence_item_write(s, evr, subitem))
+        end
     end
     write(st, UInt16[0xFFFE, 0xE0DD, 0x0000, 0x0000])
 end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
-function pixeldata_parse(st, sz, vr, dcm=false)
+function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
+    # (0x0028,0x0103) defines Pixel Representation
+    isSigned = false
+    f = get(dcm, (0x0028,0x0103), nothing)
+    if f !== nothing
+        # Data is signed if f==1
+        isSigned = f == 1
+    end
+    # (0x0028,0x0100) defines Bits Allocated
+    bitType = 16
+    f = get(dcm, (0x0028,0x0100), nothing)
+    if f !== nothing
+        bitType = Int(f)
+    else 
+        f = get(dcm, (0x0028,0x0101), nothing)
+        bitType = f !== nothing ? Int(f) : 
+            vr == "OB" ? 8 : 16
+    end
+    if bitType == 8
+        dtype = isSigned ? Int8 : UInt8
+    else
+        dtype = isSigned ? Int16 : UInt16
+    end
     yr=1
     zr=1
-    if vr=="OB"
-        xr = sz
-        dtype = UInt8
-    else
-        xr = div(sz,2)
-        dtype = UInt16
+    # (0028,0010) defines number of rows
+    f = get(dcm, (0x0028,0x0010), nothing)
+    if f !== nothing
+        xr = Int(f)
     end
-    if !is(dcm,false)
-	# (0028,0010) defines number of rows
-        f = lookup(dcm, (0x0028,0x0010))
-        if !is(f,false)
-            xr = f.data[1][1]
-        end
-	# (0028,0011) defines number of columns
-        f = lookup(dcm, (0x0028,0x0011))
-        if !is(f,false)
-            yr = f.data[1][1]
-        end
-        f = lookup(dcm, (0x0028,0x0012))
-        if !is(f,false)
-            zr = f.data[1][1]
-        end
+    # (0028,0011) defines number of columns
+    f = get(dcm, (0x0028,0x0011), nothing)
+    if f !== nothing
+        yr = Int(f)
+    end
+    # (0028,0012) defines number of planes
+    f = get(dcm, (0x0028,0x0012), nothing)
+    if f !== nothing
+        zr = Int(f)
+    end
+    # (0028,0008) defines number of frames
+    f = get(dcm, (0x0028,0x0008), nothing)
+    if f !== nothing
+        zr *= Int(f)
     end
     if sz != 0xffffffff
-        data = Array{dtype}(xr, yr, zr)
+        data = 
+        zr > 1 ? Array{dtype}(xr, yr, zr) : Array{dtype}(xr, yr)
         read!(st, data)
     else
         # start with Basic Offset Table Item
-        data = Array{Any,1}(element(st, false))
+        data = Array{Any,1}(element(st, false)[2])
         while true
             grp = read(st, UInt16)
             elt = read(st, UInt16)
@@ -189,37 +248,35 @@ function pixeldata_parse(st, sz, vr, dcm=false)
             if grp != 0xFFFE || elt != 0xE000
                 error("dicom: expected item tag in encapsulated pixel data")
             end
-            if is(dtype,UInt16); xr = div(xr,2); end
+            if dtype === UInt16; xr = div(xr,2); end
             push!(data, read!(st, Array(dtype, xr)))
         end
     end
     return data
 end
 
-function pixeldata_write(st, evr, el)
-    if length(el) > 1
-        error("dicom: compression not supported")
-    end
-    d = el[1]
+function pixeldata_write(st, evr, d)
+    # if length(el) > 1
+    #     error("dicom: compression not supported")
+    # end
     nt = eltype(d)
-    vr = is(nt,UInt8)  || is(nt,Int8)  ? "OB" :
-         is(nt,UInt16) || is(nt,Int16) ? "OW" :
-         is(nt,Float32)                ? "OF" :
+    vr = nt === UInt8  || nt === Int8  ? "OB" :
+         nt === UInt16 || nt === Int16 ? "OW" :
+         nt === Float32                ? "OF" :
          error("dicom: unsupported pixel format")
-    if !is(evr,false)
-        dcm_store(st, 0x7FE0, 0x0010, s->write(s,d), vr)
+    if evr !== false
+        dcm_store(st, (0x7FE0,0x0010), s->write(s,d), vr)
     elseif vr != "OW"
         error("dicom: implicit VR only supports 16-bit pixels")
     else
-        dcm_store(st, 0x7FE0, 0x0010, s->write(s,d))
+        dcm_store(st, (0x7FE0,0x0010), s->write(s,d))
     end
 end
 
-function skip_spaces(st, limit)
-    while limit > 0
+function skip_spaces(st, endpos)
+    while true
         c = read(st,Char)
-        limit -= 1
-        if c != ' '
+        if c != ' ' || position(st) == endpos
             return c
         end
     end
@@ -231,7 +288,7 @@ function string_parse(st, sz, maxlen, spaces)
     data = [ "" ]
     first = true
     while position(st) < endpos
-        c = !first||spaces ? read(st,Char) : skip_spaces(st, sz) # ignore maxlen?
+        c = !first||spaces ? read(st,Char) : skip_spaces(st, endpos)
         if c == '\\'
             push!(data, "")
             first = true
@@ -248,7 +305,8 @@ function string_parse(st, sz, maxlen, spaces)
     return data
 end
 
-numeric_parse(st, T, sz) = [read(st, T) for i=1:div(sz,sizeof(T))]
+numeric_parse(st::IOStream, T::DataType, sz) = T[read(st, T) for i=1:div(sz,sizeof(T))]
+
 
 if ENDIAN_BOM == 0x04030201
   order(x, endian) = endian == :little ? x : bswap.(x)
@@ -256,18 +314,18 @@ else
   order(x, endian) = endian == :big ? x : bswap.(x)
 end
 
-
-function element(st, evr, endian=:little, dcm=false)
+function element(st::IOStream, evr::Bool, endian=:little, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt16},String}())
     lentype = UInt32
     diffvr = false
     local grp
     try
         grp = read(st, UInt16)
     catch
-        return false
+        return(emptyTag,0,emptyVR)
     end
-    if grp == 2
+    if grp <= 0x0002
         endian = :little
+        evr = true
     end
     grp = order(grp, endian)
     elt = order(read(st, UInt16), endian)
@@ -281,7 +339,7 @@ function element(st, evr, endian=:little, dcm=false)
         end
         diffvr = !isequal(vr, lookup_vr(gelt))
     else
-        vr = lookup_vr(gelt)
+        vr = elt == 0x0000 ? "UL" : lookup_vr(gelt)
     end
     if isodd(grp) && grp > 0x0008 && 0x0010 <= elt <+ 0x00FF
         # Private creator
@@ -290,14 +348,28 @@ function element(st, evr, endian=:little, dcm=false)
         # Assume private
         vr = "UN"
     end
-    if is(vr,false)
-        error("dicom: unknown tag ", gelt)
+    if haskey(dVR, gelt)
+        vr = dVR[gelt]
+    end
+    if vr === emptyVR
+        if haskey(dVR, (0x0000,0x0000))
+            vr = dVR[(0x0000,0x0000)]
+        elseif !haskey(dVR, gelt)
+            error("dicom: unknown tag ", gelt)
+        end
     end
 
     sz = order(read(st,lentype), endian)
 
+    # Empty VR can be supplied in dVR to skip an element
+    if vr == ""
+        sz = isodd(sz) ? sz+1 : sz
+        skip(st,sz)
+        return(element(st,evr,endian,dcm,dVR))
+    end
+
     data =
-    vr=="ST" || vr=="LT" || vr=="UT" ? string(read(st, UInt8, sz)) :
+    vr=="ST" || vr=="LT" || vr=="UT" ? String(read(st, UInt8, sz)) :
 
     sz==0 || vr=="XX" ? Any[] :
 
@@ -340,64 +412,96 @@ function element(st, evr, endian=:little, dcm=false)
     if isodd(sz) && sz != 0xffffffff
         skip(st, 1)
     end
-    delt = DcmElt(gelt, isa(data,Vector{Any}) ? data : Any[ data ])
-    if diffvr
-        # record non-standard VR
-        delt.vr = vr
-    end
-    return delt
+
+    # For convenience, get rid of array if it is just acting as a container
+    # Exception is "SQ", where array is part of structure
+    if length(data) == 1 && vr != "SQ"
+        data = data[1]
+        if length(data) == 1
+            data = data[1]
+        end
+    end 
+    
+    # Return vr by default
+    return(gelt, data, vr)   
 end
 
 # todo: support maxlen
-string_write(vals, maxlen) = join(vals, '\\')
+string_write(vals::Array{SubString{String}}, maxlen) = string_write(convert(Array{String}, vals), maxlen)
+string_write(vals::SubString{String}, maxlen) = string_write(convert(String, vals), maxlen)
+string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
+string_write(vals::String, maxlen) = string_write([vals], maxlen) 
+string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
 
-function element_write(st, evr, el::DcmElt)
-    gelt = el.tag
-    if el.vr != ""
-        vr = el.vr
-    else
-        vr = lookup_vr(el.tag)
-        if is(vr,false)
+element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any) = element_write(st,evr,gelt,data,lookup_vr(gelt))
+function element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any, vr::String)
+    if vr === emptyVR
+        # Element tags ending in 0x0000 are not included in dcm_dicm.jl, their vr is UL
+        if gelt[2] == 0x0000 
+            vr = "UL"
+        elseif isodd(gelt[1]) && gelt[1] > 0x0008 && 0x0010 <= gelt[2] <+ 0x00FF
+                # Private creator
+                vr = "LO"
+        elseif isodd(gelt[1]) && gelt[1] > 0x0008
+                # Assume private
+                vr = "UN"
+        else
             error("dicom: unknown tag ", gelt)
         end
     end
-    if el.tag == (0x7FE0, 0x0010)
-        return pixeldata_write(st, evr, el.data)
+    if gelt == (0x7FE0, 0x0010)
+        return pixeldata_write(st, evr, data)
     end
-    if !is(evr,false)
-        evr = vr
-    end
-    el = el.data
-    if vr == "SQ"
-        return dcm_store(st, gelt[1], gelt[2],
-                         s->sequence_write(s, evr, el), evr)
-    end
-    data =
-    isempty(el) ? UInt8[] :
-    vr in ("OB","OF","OW","ST","LT","UT") ? el[1] :
-    vr in ("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM") ?
-        string_write(el, 0) :
-    vr == "FL" ? convert(Array{Float32,1}, el) :
-    vr == "FD" ? convert(Array{Float64,1}, el) :
-    vr == "SL" ? convert(Array{Int32,1},   el) :
-    vr == "SS" ? convert(Array{Int16,1},   el) :
-    vr == "UL" ? convert(Array{UInt32,1},  el) :
-    vr == "US" ? convert(Array{UInt16,1},  el) :
-    vr == "AT" ? [el...] :
-    vr in ("DS","IS") ? string_write(map(string,el), 0) :
-    el[1]
 
-    dcm_store(st, gelt[1], gelt[2], s->write(s, data), evr)
+    if vr == "SQ"
+        vr = evr ? vr : emptyVR
+        return dcm_store(st, gelt,
+                         s->sequence_write(s, evr, data), vr)
+    end
+
+    # Pack data into array container. This is to undo "data = data[1]" from element().
+    if !isa(data,Array) && vr in ("FL","FD","SL","SS","UL","US")
+        data = [data]
+    end
+
+    data =
+    isempty(data) ? UInt8[] :
+    vr in ("OB","OF","OW","ST","LT","UT") ? data :
+    vr in ("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM") ?
+        string_write(data, 0) :
+    vr == "FL" ? convert(Array{Float32,1}, data) :
+    vr == "FD" ? convert(Array{Float64,1}, data) :
+    vr == "SL" ? convert(Array{Int32,1},   data) :
+    vr == "SS" ? convert(Array{Int16,1},   data) :
+    vr == "UL" ? convert(Array{UInt32,1},  data) :
+    vr == "US" ? convert(Array{UInt16,1},  data) :
+    vr == "AT" ? [data...] :
+    vr in ("DS","IS") ? string_write(map(string,data), 0) :
+    data
+
+    if evr === false && gelt[1]>0x0002
+        vr = emptyVR
+    end
+
+    dcm_store(st, gelt, s->write(s, data), vr)
 end
 
-function dcm_parse(fn)
+"""
+    dcm_parse(fn::AbstractString)
+    
+Reads file fn and returns a Dict 
+"""
+function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff, dVR=Dict{Tuple{UInt16,UInt16},String}())
     st = open(fn)
-    evr = false
-    skip(st, 128)
-    sig = String(read(st,UInt8,4))
-    if sig != "DICM"
-        error("dicom: invalid file header")
-        # seek(st, 0)
+    if header
+        # First 128 bytes are preamble - should be skipped
+        skip(st, 128)
+        # "DICM" identifier must be after preamble
+        sig = String(read(st,UInt8,4))
+        if sig != "DICM"
+            error("dicom: invalid file header")
+            # seek(st, 0)
+        end
     end
     # a bit of a hack to detect explicit VR. seek past the first tag,
     # and check to see if a valid VR name is there
@@ -405,46 +509,72 @@ function dcm_parse(fn)
     sig = String(read(st,UInt8,2))
     evr = sig in VR_names
     skip(st, -6)
-    data = Any[]
+    dcm = Dict{Tuple{UInt16,UInt16},Any}()
+    if giveVR
+        dcmVR = Dict{Tuple{UInt16,UInt16},String}()
+    end
     endian = :little
     while true
-        fld = element(st, evr, endian, data)
-
-        if is(fld,false)
-            return data
+        (gelt, data, vr) = element(st, evr, endian, dcm, dVR) # element(st, evr, dcm, dVR)
+        if gelt === emptyTag || gelt[1] > maxGrp
+            break
         else
-            push!(data, fld)
+            dcm[gelt] = data
+            if giveVR
+                dcmVR[gelt] = vr
+            end
         end
         # look for transfer syntax UID
-        if fld.tag == (0x0002,0x0010)
-            fld = get(meta_uids, fld.data[1][1], false)
-            if !is(fld,false)
-                evr = fld[2]
-                if fld[1]
-                    endian = :big
-                else
-                    endian = :little
-                end
+        if gelt == (0x0002,0x0010)
+            # Default is endian=little, explicitVR=true
+            metaInfo = get(meta_uids, data, (false, true))
+            evr = metaInfo[2]
+            if metaInfo[1]
+                endian = :big
+            else
+                endian = :little
             end
         end
     end
     close(st)
-    return data
+    if giveVR
+        return(dcm,dcmVR)
+    else
+        return(dcm)
+    end
 end
 
-function dcm_write(st, d)
+dcm_write(fn::String, d::Dict{Tuple{UInt16,UInt16},Any}, dVR=Dict{Tuple{UInt16,UInt16},String}()) = dcm_write(open(fn,"w+"),d,dVR)
+function dcm_write(st::IOStream, d::Dict{Tuple{UInt16,UInt16},Any}, dVR=Dict{Tuple{UInt16,UInt16},String}())
     write(st, zeros(UInt8, 128))
     write(st, "DICM")
-    # if any elements specify a VR then use explicit VR syntax
-    evr = anyp(x->x.vr!="", d)
-    # insert UID for our transfer syntax
-    if evr
-        element_write(st, evr, DcmElt((0x0002,0x0010),[ "1.2.840.10008.1.2.1" ]))
+    # If no dictionary containing VRs is provided, then assume implicit VR - at first
+    evr = !isempty(dVR)
+    if !haskey(d,(0x0002,0x0010))
+        # Insert UID for our transfer syntax, if it doesn't exist
+        if evr
+            element_write(st, evr, (0x0002,0x0010), "1.2.840.10008.1.2.1", "UI")
+        else
+            element_write(st, evr, (0x0002,0x0010), "1.2.840.10008.1.2", "UI")
+        end
     else
-        element_write(st, evr, DcmElt((0x0002,0x0010),[ "1.2.840.10008.1.2" ]))
+        # Otherwise, use existing transfer UID, and overwrite evr accordingly
+        metaInfo = get(meta_uids, d[(0x0002,0x0010)], (false, true))
+        evr = metaInfo[2]
     end
-    for el in d
-        element_write(st, evr, el)
+    # dVR is only used if it isn't empty and evr=true
+    if evr && !isempty(dVR)
+        for gelt in sort(collect(keys(d)))
+            # dVR only needs to contain keys for cases where lookup_vr() fails
+            haskey(dVR, gelt) ? element_write(st, evr, gelt, d[gelt], dVR[gelt]) :
+                element_write(st, evr, gelt, d[gelt])
+        end
+    else
+        for gelt in sort(collect(keys(d)))
+            element_write(st, evr, gelt, d[gelt])
+        end
     end
+    close(st)
 end
+
 end
