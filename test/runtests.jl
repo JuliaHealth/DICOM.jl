@@ -1,8 +1,7 @@
-using Base.Test
+using Test
 using DICOM
 
-testdir = joinpath(Pkg.dir("DICOM"),"test","testdata")
-
+testdir = joinpath(@__DIR__,"testdata")
 if !isdir(testdir)
     mkdir(testdir)
 end
@@ -13,8 +12,9 @@ fileMR = joinpath(testdir, "MR_Implicit_Little")
 fileCT = joinpath(testdir, "CT_Explicit_Little")
 fileMG = joinpath(testdir, "MG_Explicit_Little.zip")
 
+
 # Don't download files if they already exist
-if !isfile(fileMR) && !isfile(fileMR) && !isfile(fileMR)
+if !isfile(fileMR) && !isfile(fileCT) && !isfile(fileMG)
     download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-16-head.gz", fileMR*".gz")
     download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-16-brain.gz", fileCT*".gz")
     download("http://www.dclunie.com/images/pixelspacingtestimages.zip", fileMG)
@@ -99,15 +99,19 @@ end
 
 # 1. Loading DICOM file with missing header
 fileOT = joinpath(testdir, "OT_Implicit_Little_Headless")
-download("http://www.barre.nom.fr/medical/samples/files/OT-MONO2-8-a7.gz", fileOT*".gz")
-run(`gunzip -f $(fileOT*".gz")`)
+if !isfile(fileOT)
+    download("http://www.barre.nom.fr/medical/samples/files/OT-MONO2-8-a7.gz", fileOT*".gz")
+    run(`gunzip -f $(fileOT*".gz")`)
+end
 
 dcmOT = dcm_parse(fileOT, header=false)
 
 # 2. Loading DICOM file with missing header and retired DICOM elements
 fileCT = joinpath(testdir, "CT-Implicit_Little_Headless_Retired")
-download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
-run(`gunzip -f $(fileCT*".gz")`)
+if !isfile(fileCT)
+    download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
+    run(`gunzip -f $(fileCT*".gz")`)
+end
 
 # 2a. With user-supplied VRs
 dVR_CTa = Dict( 
@@ -133,8 +137,10 @@ dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
 # 3. Loading DICOM file containing multiple frames
 
 fileMR_multiframe = joinpath(testdir, "MR-Explicit_Little_MultiFrame")
-download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
-run(`gunzip -f $(fileMR_multiframe*".gz")`)
+if !isfile(fileMR_multiframe)
+    download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
+    run(`gunzip -f $(fileMR_multiframe*".gz")`)
+end
 
 dcmMR_multiframe = dcm_parse(fileMR_multiframe)
 
