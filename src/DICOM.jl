@@ -233,7 +233,7 @@ function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
     end
     if sz != 0xffffffff
         data = 
-        zr > 1 ? Array{dtype}(xr, yr, zr) : Array{dtype}(xr, yr)
+        zr > 1 ? Array{dtype}(undef, xr, yr, zr) : Array{dtype}(undef, xr, yr)
         read!(st, data)
     else
         # start with Basic Offset Table Item
@@ -321,7 +321,7 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
         evr = true 
     end
     if evr && !always_implicit(grp,elt)
-        vr = String(read(st, UInt8, 2))
+        vr = String(read!(st, Array{UInt8}(undef, 2)))
         if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
             skip(st, 2)
         else
@@ -359,7 +359,7 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
     end
 
     data =
-    vr=="ST" || vr=="LT" || vr=="UT" ? String(read(st, UInt8, sz)) :
+    vr=="ST" || vr=="LT" || vr=="UT" ? String(read!(st, Array{UInt8}(undef, sz))) :
 
     sz==0 || vr=="XX" ? Any[] :
 
@@ -376,13 +376,13 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
     vr == "UL" ? numeric_parse(st, UInt32 , sz) :
     vr == "US" ? numeric_parse(st, UInt16 , sz) :
 
-    vr == "OB" ? read(st, UInt8  , sz)        :
-    vr == "OF" ? read(st, Float32, div(sz,4)) :
-    vr == "OW" ? read(st, UInt16 , div(sz,2)) :
+    vr == "OB" ? read!(st, Array{UInt8}(undef, sz))        :
+    vr == "OF" ? read!(st, Array{Float32}(undef, div(sz,4))) :
+    vr == "OW" ? read!(st, Array{UInt16}(undef, div(sz,2))) :
 
-    vr == "AT" ? [ read(st,UInt16,2) for n=1:div(sz,4) ] :
+    vr == "AT" ? [ read!(st, Array{UInt16}(undef, 2)) for n=1:div(sz,4) ] :
 
-    vr == "AS" ? String(read(st,UInt8,4)) :
+    vr == "AS" ? String(read!(st, Array{UInt8}(undef, 4))) :
 
     vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)) :
     vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)) :
@@ -397,7 +397,7 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
     vr == "DA" ? string_parse(st, sz, 10, true) :
     vr == "DT" ? string_parse(st, sz, 26, false) :
     vr == "TM" ? string_parse(st, sz, 16, false) :
-    read(st, UInt8, sz)
+    read!(st, Array{UInt8}(undef, sz))
 
     if isodd(sz) && sz != 0xffffffff
         skip(st, 1)
@@ -487,7 +487,7 @@ function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff,
         # First 128 bytes are preamble - should be skipped
         skip(st, 128)
         # "DICM" identifier must be after preamble
-        sig = String(read(st,UInt8,4))
+        sig = String(read!(st,Array{UInt8}(undef, 4)))
         if sig != "DICM"
             error("dicom: invalid file header")
             # seek(st, 0)
@@ -496,7 +496,7 @@ function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff,
     # a bit of a hack to detect explicit VR. seek past the first tag,
     # and check to see if a valid VR name is there
     skip(st, 4)
-    sig = String(read(st,UInt8,2))
+    sig = String(read!(st,Array{UInt8}(undef, 2)))
     evr = sig in VR_names
     skip(st, -6)
     dcm = Dict{Tuple{UInt16,UInt16},Any}()
