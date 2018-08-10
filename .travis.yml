@@ -4,8 +4,9 @@ os:
     - osx
 julia:
     - 0.7
+    - 1.0
     - nightly
 notifications:
     email: false
 after_success:
-    - julia -e 'cd(Pkg.dir("DICOM")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
+    - julia -e 'using Pkg; import DICOM; cd(joinpath(dirname(pathof(DICOM)),"../")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'

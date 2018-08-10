@@ -8,6 +8,7 @@ Julia interface for parsing/writing DICOM files
 
 To install the package:
 ```
+julia> using Pkg
 julia> Pkg.add("DICOM")
 ```
 
