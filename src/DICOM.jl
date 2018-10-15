@@ -1,6 +1,22 @@
 module DICOM
 
 export dcm_parse, dcm_write, lookup, lookup_vr
+export @tag_str
+
+"""
+    @tag_str(s)
+
+Return the dicom tag, corresponding to the string `s`.
+```jldoctest
+julia> using DICOM
+
+julia> tag"ROI Mean"
+(0x6000, 0x1302)
+```
+"""
+macro tag_str(s)
+    DICOM.fieldname_dict[s]
+end
 
 include("dcm_dict.jl")
 

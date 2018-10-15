@@ -154,3 +154,16 @@ dcmMR_multiframe = dcm_parse(fileMR_multiframe)
 
     @test dcmMR_multiframe[(0x0008,0x0060)] == "MR"
 end
+
+@testset "tag" begin
+    @test tag"Modality"                 === (0x0008, 0x0060) ===
+        DICOM.fieldname_dict["Modality"]
+    @test tag"Shutter Overlay Group"    === (0x0018, 0x1623) ===
+        DICOM.fieldname_dict["Shutter Overlay Group"]
+    @test tag"Histogram Last Bin Value" === (0x0060, 0x3006)
+        DICOM.fieldname_dict["Histogram Last Bin Value"]
+
+    # test that compile time error is thrown if tag does not exist
+    @test macroexpand(Main,:(tag"Modality")) === (0x0008, 0x0060)
+    @test_throws LoadError macroexpand(Main,:(tag"nonsense"))
+end
