@@ -2,6 +2,9 @@
 
 Julia interface for parsing/writing DICOM files
 
+[![Build Status](https://travis-ci.org/JuliaIO/DICOM.jl.svg?branch=master)](https://travis-ci.org/JuliaIO/DICOM.jl)
+[![Code Coverage](https://codecov.io/gh/JuliaIO/DICOM.jl/branch/master/graphs/badge.svg?)](https://codecov.io/gh/JuliaIO/DICOM.jl/branch/master)
+
 ## Usage
 
 **Installation** 
@@ -24,7 +27,7 @@ Read a DICOM file by
 julia> dcmData = dcm_parse("path/to/dicom/file")
 ```
 The data in `dcmData` is structured as a dictionary, and individual DICOM elements can be accessed by their hex tag. 
-For example, the hex tag of "Pixel Data" is `7FE0,0010`, and it can be accessed in Julia by `dcmData[(0x7FE0,0x0010)]`. 
+For example, the hex tag of "Pixel Data" is `7FE0,0010`, and it can be accessed in Julia by `dcmData[(0x7FE0,0x0010)]` or by `dcmData[tag"Pixel Data"]`. 
 
 **Writing Data**
 
