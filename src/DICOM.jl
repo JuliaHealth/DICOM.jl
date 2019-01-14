@@ -133,7 +133,7 @@ function dcm_store(st::IOStream, gelt::Tuple{UInt16,UInt16}, writef::Function, v
 end
 
 function undefined_length(st, vr)
-    data = memio()
+    data = IOBuffer()
     w1 = w2 = 0
     while true
         # read until 0xFFFE 0xE0DD
@@ -150,7 +150,7 @@ function undefined_length(st, vr)
         end
     end
     skip(st, 4)
-    takebuf_array(data)
+    take!(data)
 end
 
 function sequence_item(st::IOStream, evr, sz)

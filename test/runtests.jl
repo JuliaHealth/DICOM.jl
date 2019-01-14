@@ -135,14 +135,19 @@ dVR_CTb = Dict( (0x0000,0x0000) => "",  (0x0018,0x1170) => "DS")
 dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
 
 # 3. Loading DICOM file containing multiple frames
-
 fileMR_multiframe = joinpath(testdir, "MR-Explicit_Little_MultiFrame")
 if !isfile(fileMR_multiframe)
     download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
     run(`gunzip -f $(fileMR_multiframe*".gz")`)
 end
-
 dcmMR_multiframe = dcm_parse(fileMR_multiframe)
+
+# 4. Load DICOM with unspecified_length()
+fileMR_UnspecifiedLength = joinpath(testdir, "MR-UnspecifiedLength")
+if !isfile(fileMR_UnspecifiedLength)
+    download("https://drive.google.com/uc?export=download&id=1lm0750H-1O22O7Bqy0yfq0FK_vDrqC7-", fileMR_UnspecifiedLength)
+end
+dcmMR_UnspecifiedLength = dcm_parse(fileMR_UnspecifiedLength)
 
 @testset "Loading uncommon DICOM data" begin
     @test dcmOT[(0x0008,0x0060)] == "OT"
@@ -153,6 +158,8 @@ dcmMR_multiframe = dcm_parse(fileMR_multiframe)
     @test !haskey(dcmCTb, (0x0028,0x0040)) # dcmCTb skips retired elements
 
     @test dcmMR_multiframe[(0x0008,0x0060)] == "MR"
+
+    @test size(dcmMR_UnspecifiedLength[tag"Pixel Data"]) === (256, 256, 27)
 end
 
 @testset "tag" begin
