@@ -1,2 +1,3 @@
 # Ignore test data
 test/testdata/*
+Manifest.toml
