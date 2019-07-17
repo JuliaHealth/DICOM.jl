@@ -265,7 +265,7 @@ function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
                 error("dicom: expected item tag in encapsulated pixel data")
             end
             if dtype === UInt16; xr = div(xr,2); end
-            push!(data, read!(st, Array(dtype, xr)))
+            push!(data, read!(st, Array{dtype}(undef, xr)))
         end
     end
     return data
