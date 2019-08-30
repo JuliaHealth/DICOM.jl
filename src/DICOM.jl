@@ -18,7 +18,6 @@ macro tag_str(s)
     DICOM.fieldname_dict[s]
 end
 
-include("dcm_dict.jl")
 
 # Create dicom dictionary - used for reading/writing DICOM files
 # Keys are tuple containing hex Group and Element of DICOM entry
@@ -28,34 +27,17 @@ include("dcm_dict.jl")
 #  "Specific Character Set"
 #  "CS"
 #  "1-n"
-function dcm_init()
-    dcm_dict = Dict{Tuple{UInt16,UInt16},Array{String,1}}()
-    for d in (_dcmdict_data_::Array{Any,1})
-        dcm_dict[(UInt16(d[1][1]),UInt16(d[1][2]))] = d[2:end]
-    end
-    return(dcm_dict)
-end
-
+include("dcm_dict.jl")  # const dcm_dict = ...
 
 # For convenience, dictionary to get hex tag from field name, e.g:
 # Julia> DICOM.fieldname_dict["Specific Character Set"]
 # (0x0008, 0x0005)
-function fieldname_init()
-    fieldname_dict = Dict{AbstractString, Tuple{UInt16,UInt16}}()
-    for d in (_dcmdict_data_::Array{Any,1})
-        fieldname_dict[d[2]] = (UInt16(d[1][1]),UInt16(d[1][2]))
-    end
-    return(fieldname_dict)
-end
-
-const dcm_dict = dcm_init()
-const fieldname_dict = fieldname_init()
-_dcmdict_data_ = 0
+fieldname_dict = Dict(val[1] => key for (key, val) in dcm_dict)
 
 # These "empty" values are used internally. They are returned if a search fails.
 const emptyVR = "" # Can be any VR that doesn't exist
 const emptyVR_lookup = ["", emptyVR, ""] # Used in lookup_vr as failure state
-const emptyTag = (0x0000,0x0000) 
+const emptyTag = (0x0000,0x0000)
 const emptyDcmDict = Dict(DICOM.emptyTag => nothing)
 
 const VR_names = [ "AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
@@ -66,10 +48,10 @@ const meta_uids = Dict([("1.2.840.10008.1.2", (false, false)),
                   ("1.2.840.10008.1.2.1", (false, true)),
                   ("1.2.840.10008.1.2.1.99", (false, true)),
                   ("1.2.840.10008.1.2.2", (true, true))]);
-       
+
 """
     lookup_vr(tag::Tuple{Integer,Integer})
-    
+
 Return VR value for tag from DICOM dictionary
 
 # Example
@@ -214,9 +196,9 @@ function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
     f = get(dcm, (0x0028,0x0100), nothing)
     if f !== nothing
         bitType = Int(f)
-    else 
+    else
         f = get(dcm, (0x0028,0x0101), nothing)
-        bitType = f !== nothing ? Int(f) : 
+        bitType = f !== nothing ? Int(f) :
             vr == "OB" ? 8 : 16
     end
     if bitType == 8
@@ -248,7 +230,7 @@ function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
         zr *= Int(f)
     end
     if sz != 0xffffffff
-        data = 
+        data =
         zr > 1 ? Array{dtype}(undef, xr, yr, zr) : Array{dtype}(undef, xr, yr)
         read!(st, data)
     else
@@ -334,7 +316,7 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
     elt = read(st, UInt16)
     gelt = (grp,elt)
     if grp <= 0x0002
-        evr = true 
+        evr = true
     end
     if evr && !always_implicit(grp,elt)
         vr = String(read!(st, Array{UInt8}(undef, 2)))
@@ -426,24 +408,24 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
         if length(data) == 1
             data = data[1]
         end
-    end 
-    
+    end
+
     # Return vr by default
-    return(gelt, data, vr)   
+    return(gelt, data, vr)
 end
 
 # todo: support maxlen
 string_write(vals::Array{SubString{String}}, maxlen) = string_write(convert(Array{String}, vals), maxlen)
 string_write(vals::SubString{String}, maxlen) = string_write(convert(String, vals), maxlen)
 string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
-string_write(vals::String, maxlen) = string_write([vals], maxlen) 
+string_write(vals::String, maxlen) = string_write([vals], maxlen)
 string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
 
 element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any) = element_write(st,evr,gelt,data,lookup_vr(gelt))
 function element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any, vr::String)
     if vr === emptyVR
         # Element tags ending in 0x0000 are not included in dcm_dicm.jl, their vr is UL
-        if gelt[2] == 0x0000 
+        if gelt[2] == 0x0000
             vr = "UL"
         elseif isodd(gelt[1]) && gelt[1] > 0x0008 && 0x0010 <= gelt[2] <+ 0x00FF
                 # Private creator
@@ -494,8 +476,8 @@ end
 
 """
     dcm_parse(fn::AbstractString)
-    
-Reads file fn and returns a Dict 
+
+Reads file fn and returns a Dict
 """
 function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff, dVR=Dict{Tuple{UInt16,UInt16},String}())
     st = open(fn)
