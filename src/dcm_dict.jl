@@ -838,6 +838,7 @@ dcm_dict = Dict(
 (0x0028, 0x1053) => ["Rescale Slope", "DS", "1"],
 (0x0028, 0x1054) => ["Rescale Type", "LO", "1"],
 (0x0028, 0x1055) => ["Window Center & Width Explanation", "LO", "1-n"],
+(0x0028, 0x1056) => ["VOI LUT Function", "CS", "1"],
 (0x0028, 0x1090) => ["Recommended Viewing Mode", "CS", "1"],
 (0x0028, 0x1101) => ["Red Palette Color Lookup Table Descriptor", "US", "3"],
 (0x0028, 0x1102) => ["Green Palette Color Lookup Table Descriptor", "US", "3"],

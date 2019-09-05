@@ -417,6 +417,7 @@ end
 # todo: support maxlen
 string_write(vals::Array{SubString{String}}, maxlen) = string_write(convert(Array{String}, vals), maxlen)
 string_write(vals::SubString{String}, maxlen) = string_write(convert(String, vals), maxlen)
+string_write(vals::Tuple{String, String}, maxlen) = string_write(collect(vals), maxlen)
 string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
 string_write(vals::String, maxlen) = string_write([vals], maxlen)
 string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
