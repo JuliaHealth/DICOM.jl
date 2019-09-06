@@ -15,12 +15,12 @@ fileMG = joinpath(testdir, "MG_Explicit_Little.zip")
 
 # Don't download files if they already exist
 if !isfile(fileMR) && !isfile(fileCT) && !isfile(fileMG)
-    download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-16-head.gz", fileMR*".gz")
-    download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-16-brain.gz", fileCT*".gz")
+    download("https://dl.dropboxusercontent.com/s/2wdpdwbv3vs5glf/MR-MONO2-16-head.gz", fileMR*".gz")
+    download("https://dl.dropboxusercontent.com/s/u2rj556q3xcgv2b/CT-MONO2-16-brain.gz", fileCT*".gz")
     download("http://www.dclunie.com/images/pixelspacingtestimages.zip", fileMG)
 
-    run(`gunzip -f $(fileMR*".gz")`)
-    run(`gunzip -f $(fileCT*".gz")`)
+    run(`gzip -d $(fileMR*".gz")`)
+    run(`gzip -d $(fileCT*".gz")`)
     run(`unzip -o $fileMG -d $testdir`)
 end
 
@@ -28,7 +28,7 @@ end
 dcmMR_partial = dcm_parse(fileMR, maxGrp=0x0008)
 dcmMR = dcm_parse(fileMR)
 dcmCT = dcm_parse(fileCT)
-(dcmMG, vrMG) = dcm_parse(joinpath(testdir, "DISCIMG/IMAGES/MGIMAGEA"), true)
+(dcmMG, vrMG) = dcm_parse(joinpath(testdir,"DISCIMG","IMAGES","MGIMAGEA"), true)
 
 @testset "Loading DICOM data" begin
     @test dcmMR_partial[(0x0008,0x0060)] == "MR"
@@ -100,8 +100,8 @@ end
 # 1. Loading DICOM file with missing header
 fileOT = joinpath(testdir, "OT_Implicit_Little_Headless")
 if !isfile(fileOT)
-    download("http://www.barre.nom.fr/medical/samples/files/OT-MONO2-8-a7.gz", fileOT*".gz")
-    run(`gunzip -f $(fileOT*".gz")`)
+    download("https://dl.dropboxusercontent.com/s/xlxfqfu974if96l/OT-MONO2-8-a7.gz", fileOT*".gz")
+    run(`gzip -d $(fileOT*".gz")`)
 end
 
 dcmOT = dcm_parse(fileOT, header=false)
@@ -109,8 +109,8 @@ dcmOT = dcm_parse(fileOT, header=false)
 # 2. Loading DICOM file with missing header and retired DICOM elements
 fileCT = joinpath(testdir, "CT-Implicit_Little_Headless_Retired")
 if !isfile(fileCT)
-    download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
-    run(`gunzip -f $(fileCT*".gz")`)
+    download("https://dl.dropboxusercontent.com/s/0lcawkys1c9mjwl/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
+    run(`gzip -d $(fileCT*".gz")`)
 end
 
 # 2a. With user-supplied VRs
@@ -137,8 +137,8 @@ dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
 # 3. Loading DICOM file containing multiple frames
 fileMR_multiframe = joinpath(testdir, "MR-Explicit_Little_MultiFrame")
 if !isfile(fileMR_multiframe)
-    download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
-    run(`gunzip -f $(fileMR_multiframe*".gz")`)
+    download("https://dl.dropboxusercontent.com/s/8p3bpjvhnz2avzw/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
+    run(`gzip -d $(fileMR_multiframe*".gz")`)
 end
 dcmMR_multiframe = dcm_parse(fileMR_multiframe)
 
