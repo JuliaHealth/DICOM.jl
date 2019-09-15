@@ -8,19 +8,17 @@ end
 
 # TEST SET 1: Simple Reading/Writing
 
-fileMR = joinpath(testdir, "MR_Implicit_Little")
-fileCT = joinpath(testdir, "CT_Explicit_Little")
+fileMR = joinpath(testdir, "MR_Implicit_Little.dcm")
+fileCT = joinpath(testdir, "CT_Explicit_Little.dcm")
 fileMG = joinpath(testdir, "MG_Explicit_Little.zip")
 
 
 # Don't download files if they already exist
 if !isfile(fileMR) && !isfile(fileCT) && !isfile(fileMG)
-    download("https://dl.dropboxusercontent.com/s/2wdpdwbv3vs5glf/MR-MONO2-16-head.gz", fileMR*".gz")
-    download("https://dl.dropboxusercontent.com/s/u2rj556q3xcgv2b/CT-MONO2-16-brain.gz", fileCT*".gz")
+    download("https://github.com/notZaki/DICOMsamples/raw/master/dicomSamples/MR_Implicit_Little.dcm", fileMR)
+    download("https://github.com/notZaki/DICOMsamples/raw/master/dicomSamples/CT_Explicit_Little.dcm", fileCT)
     download("http://www.dclunie.com/images/pixelspacingtestimages.zip", fileMG)
 
-    run(`gzip -d $(fileMR*".gz")`)
-    run(`gzip -d $(fileCT*".gz")`)
     run(`unzip -o $fileMG -d $testdir`)
 end
 
@@ -33,7 +31,7 @@ dcmCT = dcm_parse(fileCT)
 @testset "Loading DICOM data" begin
     @test dcmMR_partial[(0x0008,0x0060)] == "MR"
     @test haskey(dcmMR_partial, (0x7FE0,0x0010)) == false
-   
+
     @test dcmMR[(0x0008,0x0060)] == "MR"
     @test dcmCT[(0x0008,0x0060)] == "CT"
     @test dcmMG[(0x0008,0x0060)] == "MG"
@@ -98,23 +96,21 @@ end
 # TEST SET 2: Reading uncommon datasets
 
 # 1. Loading DICOM file with missing header
-fileOT = joinpath(testdir, "OT_Implicit_Little_Headless")
+fileOT = joinpath(testdir, "OT_Implicit_Little_Headless.dcm")
 if !isfile(fileOT)
-    download("https://dl.dropboxusercontent.com/s/xlxfqfu974if96l/OT-MONO2-8-a7.gz", fileOT*".gz")
-    run(`gzip -d $(fileOT*".gz")`)
+    download("https://github.com/notZaki/DICOMsamples/raw/master/dicomSamples/OT_Implicit_Little_Headless.dcm", fileOT)
 end
 
 dcmOT = dcm_parse(fileOT, header=false)
 
 # 2. Loading DICOM file with missing header and retired DICOM elements
-fileCT = joinpath(testdir, "CT-Implicit_Little_Headless_Retired")
+fileCT = joinpath(testdir, "CT_Implicit_Little_Headless_Retired.dcm")
 if !isfile(fileCT)
-    download("https://dl.dropboxusercontent.com/s/0lcawkys1c9mjwl/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
-    run(`gzip -d $(fileCT*".gz")`)
+    download("https://github.com/notZaki/DICOMsamples/raw/master/dicomSamples/CT_Implicit_Little_Headless_Retired.dcm", fileCT)
 end
 
 # 2a. With user-supplied VRs
-dVR_CTa = Dict( 
+dVR_CTa = Dict(
     (0x0008,0x0010) => "SH",
     (0x0008,0x0040) => "US",
     (0x0008,0x0041) => "LO",
@@ -135,23 +131,22 @@ dVR_CTb = Dict( (0x0000,0x0000) => "",  (0x0018,0x1170) => "DS")
 dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
 
 # 3. Loading DICOM file containing multiple frames
-fileMR_multiframe = joinpath(testdir, "MR-Explicit_Little_MultiFrame")
+fileMR_multiframe = joinpath(testdir, "MR_Explicit_Little_MultiFrame.dcm")
 if !isfile(fileMR_multiframe)
-    download("https://dl.dropboxusercontent.com/s/8p3bpjvhnz2avzw/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
-    run(`gzip -d $(fileMR_multiframe*".gz")`)
+    download("https://github.com/notZaki/DICOMsamples/raw/master/dicomSamples/MR_Explicit_Little_MultiFrame.dcm", fileMR_multiframe)
 end
 dcmMR_multiframe = dcm_parse(fileMR_multiframe)
 
 # 4. Load DICOM with unspecified_length()
-fileMR_UnspecifiedLength = joinpath(testdir, "MR-UnspecifiedLength")
+fileMR_UnspecifiedLength = joinpath(testdir, "MR_UnspecifiedLength")
 if !isfile(fileMR_UnspecifiedLength)
-    download("https://drive.google.com/uc?export=download&id=1lm0750H-1O22O7Bqy0yfq0FK_vDrqC7-", fileMR_UnspecifiedLength)
+    download("https://github.com/notZaki/DICOMsamples/raw/master/dicomSamples/MR_UnspecifiedLength.dcm", fileMR_UnspecifiedLength)
 end
 dcmMR_UnspecifiedLength = dcm_parse(fileMR_UnspecifiedLength)
 
 @testset "Loading uncommon DICOM data" begin
     @test dcmOT[(0x0008,0x0060)] == "OT"
-    
+
     @test dcmCTa[(0x0008,0x0060)] == "CT"
     @test dcmCTb[(0x0008,0x0060)] == "CT"
     @test haskey(dcmCTa, (0x0028,0x0040)) # dcmCTa should contain retired element
