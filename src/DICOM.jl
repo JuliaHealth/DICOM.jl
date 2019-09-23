@@ -357,7 +357,7 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
     end
 
     data =
-    vr=="ST" || vr=="LT" || vr=="UT" ? String(read!(st, Array{UInt8}(undef, sz))) :
+    vr=="ST" || vr=="LT" || vr=="UT" || vr=="AS" ? String(read!(st, Array{UInt8}(undef, sz))) :
 
     sz==0 || vr=="XX" ? Any[] :
 
@@ -379,8 +379,6 @@ function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt1
     vr == "OW" ? read!(st, Array{UInt16}(undef, div(sz,2))) :
 
     vr == "AT" ? [ read!(st, Array{UInt16}(undef, 2)) for n=1:div(sz,4) ] :
-
-    vr == "AS" ? String(read!(st, Array{UInt8}(undef, 4))) :
 
     vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)) :
     vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)) :
