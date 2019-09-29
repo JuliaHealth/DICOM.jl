@@ -173,6 +173,7 @@ function sequence_parse(st, evr, sz)
     return sq
 end
 
+sequence_write(st::IO, evr::Bool, items::Array{Any,1}) = sequence_write(st,evr,convert(Array{Dict{Tuple{UInt16,UInt16},Any},1},items))
 function sequence_write(st::IO, evr::Bool, items::Array{Dict{Tuple{UInt16,UInt16},Any},1})
     for subitem in items
         if length(subitem) > 0
