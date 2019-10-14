@@ -1,39 +1,44 @@
 using Test
 using DICOM
 
-testdir = joinpath(@__DIR__,"testdata")
-if !isdir(testdir)
-    mkdir(testdir)
+const data_folder = joinpath(@__DIR__,"testdata")
+if !isdir(data_folder)
+    mkdir(data_folder)
 end
 
-# TEST SET 1: Simple Reading/Writing
+const dicom_samples = Dict(
+    "CT_Explicit_Little.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_Explicit_Little.dcm",
+    "CT_Implicit_Little_Headless_Retired.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_Implicit_Little_Headless_Retired.dcm",
+    "MG_Explicit_Little.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MG_Explicit_Little.dcm",
+    "MR_Explicit_Little_MultiFrame.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Explicit_Little_MultiFrame.dcm",
+    "MR_Implicit_Little.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Implicit_Little.dcm",
+    "MR_UnspecifiedLength.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_UnspecifiedLength.dcm",
+    "OT_Implicit_Little_Headless.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/OT_Implicit_Little_Headless.dcm"
+)
 
-fileMR = joinpath(testdir, "MR_Implicit_Little")
-fileCT = joinpath(testdir, "CT_Explicit_Little")
-fileMG = joinpath(testdir, "MG_Explicit_Little.zip")
-
-
-# Don't download files if they already exist
-if !isfile(fileMR) && !isfile(fileCT) && !isfile(fileMG)
-    download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-16-head.gz", fileMR*".gz")
-    download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-16-brain.gz", fileCT*".gz")
-    download("http://www.dclunie.com/images/pixelspacingtestimages.zip", fileMG)
-
-    run(`gunzip -f $(fileMR*".gz")`)
-    run(`gunzip -f $(fileCT*".gz")`)
-    run(`unzip -o $fileMG -d $testdir`)
+function download_dicom(filename; folder = data_folder)
+    @assert haskey(dicom_samples, filename)
+    url = dicom_samples[filename]
+    filepath = joinpath(folder, filename)
+    if !isfile(filepath)
+        download(url, filepath)
+    end
+    return filepath
 end
 
-# Load dicom data
-dcmMR_partial = dcm_parse(fileMR, maxGrp=0x0008)
-dcmMR = dcm_parse(fileMR)
-dcmCT = dcm_parse(fileCT)
-(dcmMG, vrMG) = dcm_parse(joinpath(testdir, "DISCIMG/IMAGES/MGIMAGEA"), true)
+@testset "Reading DICOM" begin
+    fileMR = download_dicom("MR_Implicit_Little.dcm")
+    fileCT = download_dicom("CT_Explicit_Little.dcm")
+    fileMG = download_dicom("MG_Explicit_Little.dcm")
 
-@testset "Loading DICOM data" begin
+    dcmMR_partial = dcm_parse(fileMR, maxGrp=0x0008)
+    dcmMR = dcm_parse(fileMR)
+    dcmCT = dcm_parse(fileCT)
+    (dcmMG, vrMG) = dcm_parse(fileMG, true)
+
     @test dcmMR_partial[(0x0008,0x0060)] == "MR"
     @test haskey(dcmMR_partial, (0x7FE0,0x0010)) == false
-   
+
     @test dcmMR[(0x0008,0x0060)] == "MR"
     @test dcmCT[(0x0008,0x0060)] == "CT"
     @test dcmMG[(0x0008,0x0060)] == "MG"
@@ -47,41 +52,44 @@ dcmCT = dcm_parse(fileCT)
     @test dcmMR[(0x7FE0,0x0010)] == lookup(dcmMR, "Pixel Data")
 end
 
-# Define two output files for each dcm - data will be saved, reloaded, then saved again
-outMR1 = joinpath(testdir,"outMR1.dcm")
-outMR2 = joinpath(testdir,"outMR2.dcm")
+@testset "Writing DICOM" begin
+    fileMR = download_dicom("MR_Implicit_Little.dcm")
+    fileCT = download_dicom("CT_Explicit_Little.dcm")
+    fileMG = download_dicom("MG_Explicit_Little.dcm")
 
-outCT1 = joinpath(testdir,"outCT1.dcm")
-outCT2 = joinpath(testdir,"outCT2.dcm")
+    dcmMR = dcm_parse(fileMR)
+    dcmCT = dcm_parse(fileCT)
+    (dcmMG, vrMG) = dcm_parse(fileMG, true)
 
-outMG1 = joinpath(testdir,"outMG1.dcm")
-outMG1b = joinpath(testdir,"outMG1b.dcm")
-outMG2 = joinpath(testdir,"outMG2.dcm")
+    # Define two output files for each dcm - data will be saved, reloaded, then saved again
+    outMR1 = joinpath(data_folder,"outMR1.dcm")
+    outMR2 = joinpath(data_folder,"outMR2.dcm")
+    outCT1 = joinpath(data_folder,"outCT1.dcm")
+    outCT2 = joinpath(data_folder,"outCT2.dcm")
+    outMG1 = joinpath(data_folder,"outMG1.dcm")
+    outMG1b = joinpath(data_folder,"outMG1b.dcm")
+    outMG2 = joinpath(data_folder,"outMG2.dcm")
 
-@testset "Writing DICOM data" begin
-    # No specific test, just test if file is saved without errors
+    # Write DICOM files
     outIO = open(outMR1, "w+"); dcm_write(outIO,dcmMR); close(outIO)
     outIO = open(outCT1, "w+"); dcm_write(outIO,dcmCT); close(outIO)
     outIO = open(outMG1, "w+"); dcm_write(outIO,dcmMG,vrMG); close(outIO)
     dcm_write(outMG1b,dcmMG,vrMG)
-end
-
-# Load saved DICOM data
-dcmMR1 = dcm_parse(outMR1)
-dcmCT1 = dcm_parse(outCT1)
-(dcmMG1, vrMG1) = dcm_parse(outMG1, true)
-
-@testset "Consistence of Reading/Writing data" begin
-    # Confirm that re-loading/saving leads to same file
+    # Reading DICOM files which were written from previous step
+    dcmMR1 = dcm_parse(outMR1)
+    dcmCT1 = dcm_parse(outCT1)
+    (dcmMG1, vrMG1) = dcm_parse(outMG1, true)
+    # Write DICOM files which were re-read from previous step
     outIO = open(outMR2, "w+"); dcm_write(outIO,dcmMR1); close(outIO)
     outIO = open(outCT2, "w+"); dcm_write(outIO,dcmCT1); close(outIO)
     outIO = open(outMG2, "w+"); dcm_write(outIO,dcmMG1, vrMG1); close(outIO)
 
+    # Test consistency of written files after the write-read-write cycle
     @test read(outMR1)==read(outMR2)
     @test read(outCT1)==read(outCT2)
     @test read(outMG1)==read(outMG2)
 
-    # Repeat first tests on reloaded data
+    # Repeat first testset on written data
     @test dcmMR1[(0x0008,0x0060)] == "MR"
     @test dcmCT1[(0x0008,0x0060)] == "CT"
     @test dcmMG1[(0x0008,0x0060)] == "MG"
@@ -95,74 +103,50 @@ dcmCT1 = dcm_parse(outCT1)
     @test dcmMR1[(0x7FE0,0x0010)] == lookup(dcmMR, "Pixel Data")
 end
 
-# TEST SET 2: Reading uncommon datasets
-
-# 1. Loading DICOM file with missing header
-fileOT = joinpath(testdir, "OT_Implicit_Little_Headless")
-if !isfile(fileOT)
-    download("http://www.barre.nom.fr/medical/samples/files/OT-MONO2-8-a7.gz", fileOT*".gz")
-    run(`gunzip -f $(fileOT*".gz")`)
-end
-
-dcmOT = dcm_parse(fileOT, header=false)
-
-# 2. Loading DICOM file with missing header and retired DICOM elements
-fileCT = joinpath(testdir, "CT-Implicit_Little_Headless_Retired")
-if !isfile(fileCT)
-    download("http://www.barre.nom.fr/medical/samples/files/CT-MONO2-12-lomb-an2.gz", fileCT*".gz")
-    run(`gunzip -f $(fileCT*".gz")`)
-end
-
-# 2a. With user-supplied VRs
-dVR_CTa = Dict( 
-    (0x0008,0x0010) => "SH",
-    (0x0008,0x0040) => "US",
-    (0x0008,0x0041) => "LO",
-    (0x0018,0x1170) => "DS",
-    (0x0020,0x0030) => "DS",
-    (0x0020,0x0035) => "DS",
-    (0x0020,0x0050) => "DS",
-    (0x0020,0x0070) => "LO",
-    (0x0028,0x0005) => "US",
-    (0x0028,0x0040) => "CS",
-    (0x0028,0x0200) => "US")
-dcmCTa = dcm_parse(fileCT, header=false, dVR=dVR_CTa);
-
-# 2b. With a master VR which skips elements
-# Here we skip any element where lookup_vr() fails
-# And we also force (0x0018,0x1170) to be read as float instead of integer
-dVR_CTb = Dict( (0x0000,0x0000) => "",  (0x0018,0x1170) => "DS")
-dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
-
-# 3. Loading DICOM file containing multiple frames
-fileMR_multiframe = joinpath(testdir, "MR-Explicit_Little_MultiFrame")
-if !isfile(fileMR_multiframe)
-    download("http://www.barre.nom.fr/medical/samples/files/MR-MONO2-8-16x-heart.gz", fileMR_multiframe*".gz")
-    run(`gunzip -f $(fileMR_multiframe*".gz")`)
-end
-dcmMR_multiframe = dcm_parse(fileMR_multiframe)
-
-# 4. Load DICOM with unspecified_length()
-fileMR_UnspecifiedLength = joinpath(testdir, "MR-UnspecifiedLength")
-if !isfile(fileMR_UnspecifiedLength)
-    download("https://drive.google.com/uc?export=download&id=1lm0750H-1O22O7Bqy0yfq0FK_vDrqC7-", fileMR_UnspecifiedLength)
-end
-dcmMR_UnspecifiedLength = dcm_parse(fileMR_UnspecifiedLength)
-
-@testset "Loading uncommon DICOM data" begin
+@testset "Uncommon DICOM" begin
+    # 1. DICOM file with missing header
+    fileOT = download_dicom("OT_Implicit_Little_Headless.dcm")
+    dcmOT = dcm_parse(fileOT, header=false)
     @test dcmOT[(0x0008,0x0060)] == "OT"
-    
+
+    # 2. DICOM file with missing header and retired DICOM elements
+    fileCT = download_dicom("CT_Implicit_Little_Headless_Retired.dcm")
+    # 2a. Read with user-supplied VRs
+    dVR_CTa = Dict(
+        (0x0008,0x0010) => "SH",
+        (0x0008,0x0040) => "US",
+        (0x0008,0x0041) => "LO",
+        (0x0018,0x1170) => "DS",
+        (0x0020,0x0030) => "DS",
+        (0x0020,0x0035) => "DS",
+        (0x0020,0x0050) => "DS",
+        (0x0020,0x0070) => "LO",
+        (0x0028,0x0005) => "US",
+        (0x0028,0x0040) => "CS",
+        (0x0028,0x0200) => "US")
+    dcmCTa = dcm_parse(fileCT, header=false, dVR=dVR_CTa);
+    # 2b. Read with a master VR which skips elements
+    # Here we skip any element where lookup_vr() fails
+    # And we also force (0x0018,0x1170) to be read as float instead of integer
+    dVR_CTb = Dict( (0x0000,0x0000) => "",  (0x0018,0x1170) => "DS")
+    dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
     @test dcmCTa[(0x0008,0x0060)] == "CT"
     @test dcmCTb[(0x0008,0x0060)] == "CT"
     @test haskey(dcmCTa, (0x0028,0x0040)) # dcmCTa should contain retired element
     @test !haskey(dcmCTb, (0x0028,0x0040)) # dcmCTb skips retired elements
 
+    # 3. DICOM file containing multiple frames
+    fileMR_multiframe = download_dicom("MR_Explicit_Little_MultiFrame.dcm")
+    dcmMR_multiframe = dcm_parse(fileMR_multiframe)
     @test dcmMR_multiframe[(0x0008,0x0060)] == "MR"
 
+    # 4. DICOM with unspecified_length()
+    fileMR_UnspecifiedLength = download_dicom("MR_UnspecifiedLength.dcm")
+    dcmMR_UnspecifiedLength = dcm_parse(fileMR_UnspecifiedLength)
     @test size(dcmMR_UnspecifiedLength[tag"Pixel Data"]) === (256, 256, 27)
 end
 
-@testset "tag" begin
+@testset "Test tag macro" begin
     @test tag"Modality"                 === (0x0008, 0x0060) ===
         DICOM.fieldname_dict["Modality"]
     @test tag"Shutter Overlay Group"    === (0x0018, 0x1623) ===
