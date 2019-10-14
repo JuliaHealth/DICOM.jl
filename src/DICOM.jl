@@ -78,8 +78,8 @@ always_implicit(grp, elt) = (grp == 0xFFFE && (elt == 0xE0DD||elt == 0xE000||
                                                elt == 0xE00D))
 
 
-dcm_store(st::IOStream, gelt::Tuple{UInt16,UInt16}, writef::Function) = dcm_store(st, gelt, writef, emptyVR)
-function dcm_store(st::IOStream, gelt::Tuple{UInt16,UInt16}, writef::Function, vr::String)
+dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function) = dcm_store(st, gelt, writef, emptyVR)
+function dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function, vr::String)
     lentype = UInt32
     write(st, UInt16(gelt[1])) # Grp
     write(st, UInt16(gelt[2])) # Elt
@@ -135,7 +135,7 @@ function undefined_length(st, vr)
     take!(data)
 end
 
-function sequence_item(st::IOStream, evr, sz)
+function sequence_item(st::IO, evr, sz)
     item = Dict{Tuple{UInt16,UInt16},Any}()
     endpos = position(st) + sz
     while position(st) < endpos
@@ -148,7 +148,7 @@ function sequence_item(st::IOStream, evr, sz)
     return item
 end
 
-function sequence_item_write(st::IOStream, evr::Bool, items::Dict{Tuple{UInt16,UInt16},Any})
+function sequence_item_write(st::IO, evr::Bool, items::Dict{Tuple{UInt16,UInt16},Any})
     for gelt in sort(collect(keys(items)))
         element_write(st, evr, gelt, items[gelt])
     end
@@ -173,7 +173,7 @@ function sequence_parse(st, evr, sz)
     return sq
 end
 
-function sequence_write(st::IOStream, evr::Bool, items::Array{Dict{Tuple{UInt16,UInt16},Any},1})
+function sequence_write(st::IO, evr::Bool, items::Array{Dict{Tuple{UInt16,UInt16},Any},1})
     for subitem in items
         if length(subitem) > 0
             dcm_store(st, (0xFFFE,0xE000), s->sequence_item_write(s, evr, subitem))
@@ -183,7 +183,7 @@ function sequence_write(st::IOStream, evr::Bool, items::Array{Dict{Tuple{UInt16,
 end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
-function pixeldata_parse(st::IOStream, sz, vr::String, dcm=emptyDcmDict)
+function pixeldata_parse(st::IO, sz, vr::String, dcm=emptyDcmDict)
     # (0x0028,0x0103) defines Pixel Representation
     isSigned = false
     f = get(dcm, (0x0028,0x0103), nothing)
@@ -302,9 +302,9 @@ function string_parse(st, sz, maxlen, spaces)
     return data
 end
 
-numeric_parse(st::IOStream, T::DataType, sz) = T[read(st, T) for i=1:div(sz,sizeof(T))]
+numeric_parse(st::IO, T::DataType, sz) = T[read(st, T) for i=1:div(sz,sizeof(T))]
 
-function element(st::IOStream, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt16},String}())
+function element(st::IO, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt16},String}())
     lentype = UInt32
     diffvr = false
     local grp
@@ -415,12 +415,13 @@ end
 # todo: support maxlen
 string_write(vals::Array{SubString{String}}, maxlen) = string_write(convert(Array{String}, vals), maxlen)
 string_write(vals::SubString{String}, maxlen) = string_write(convert(String, vals), maxlen)
+string_write(vals::Tuple{String, String}, maxlen) = string_write(collect(vals), maxlen)
 string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
 string_write(vals::String, maxlen) = string_write([vals], maxlen)
 string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
 
-element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any) = element_write(st,evr,gelt,data,lookup_vr(gelt))
-function element_write(st::IOStream, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any, vr::String)
+element_write(st::IO, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any) = element_write(st,evr,gelt,data,lookup_vr(gelt))
+function element_write(st::IO, evr::Bool, gelt::Tuple{UInt16,UInt16}, data::Any, vr::String)
     if vr === emptyVR
         # Element tags ending in 0x0000 are not included in dcm_dicm.jl, their vr is UL
         if gelt[2] == 0x0000
@@ -479,6 +480,17 @@ Reads file fn and returns a Dict
 """
 function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff, dVR=Dict{Tuple{UInt16,UInt16},String}())
     st = open(fn)
+    dcm = dcm_parse(st, giveVR; header=header, maxGrp=maxGrp, dVR=dVR)
+    close(st)
+    dcm
+end
+
+"""
+    dcm_parse(st::IO)
+
+Reads IO st and returns a Dict
+"""
+function dcm_parse(st::IO, giveVR=false; header=true, maxGrp=0xffff, dVR=Dict{Tuple{UInt16,UInt16},String}())
     if header
         # First 128 bytes are preamble - should be skipped
         skip(st, 128)
@@ -522,7 +534,6 @@ function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff,
             end
         end
     end
-    close(st)
     if giveVR
         return(dcm,dcmVR)
     else
@@ -531,7 +542,7 @@ function dcm_parse(fn::AbstractString, giveVR=false; header=true, maxGrp=0xffff,
 end
 
 dcm_write(fn::String, d::Dict{Tuple{UInt16,UInt16},Any}, dVR=Dict{Tuple{UInt16,UInt16},String}()) = dcm_write(open(fn,"w+"),d,dVR)
-function dcm_write(st::IOStream, d::Dict{Tuple{UInt16,UInt16},Any}, dVR=Dict{Tuple{UInt16,UInt16},String}())
+function dcm_write(st::IO, d::Dict{Tuple{UInt16,UInt16},Any}, dVR=Dict{Tuple{UInt16,UInt16},String}())
     write(st, zeros(UInt8, 128))
     write(st, "DICM")
     # If no dictionary containing VRs is provided, then assume implicit VR - at first
