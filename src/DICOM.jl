@@ -100,11 +100,11 @@ end
 
 Reads IO st and returns a Dict
 """
-function dcm_parse(st::IO; return_vr=false, header=true, max_group=0xffff, aux_vr=Dict{Tuple{UInt16,UInt16},String}())
-   if header
-       check_header(st)
+function dcm_parse(st::IO; return_vr=false, preamble=true, max_group=0xffff, aux_vr=Dict{Tuple{UInt16,UInt16},String}())
+   if preamble
+       check_preamble(st)
    end
-   dcm = read_preamble(st)
+   dcm = read_meta(st)
    is_explicit, endian = determine_explicitness_and_endianness(dcm)
    file_properties = (is_explicit=is_explicit, endian=endian, aux_vr=aux_vr)
    (dcm, vr) = read_body(st, dcm, file_properties; max_group=max_group)
@@ -115,10 +115,10 @@ function dcm_parse(st::IO; return_vr=false, header=true, max_group=0xffff, aux_v
    end
 end
 
-function check_header(st)
-   # First 128 bytes are preamble - should be skipped
+function check_preamble(st)
+   # First 128 can be skipped
    skip(st, 128)
-   # "DICM" identifier must be after preamble
+   # "DICM" identifier must be after the first 128 bytes
    sig = String(read!(st,Array{UInt8}(undef, 4)))
    if sig != "DICM"
        error("dicom: invalid file header")
@@ -126,8 +126,8 @@ function check_header(st)
    return
 end
 
-# Preamble is always explicit VR / little endian
-function read_preamble(st::IO)
+# Meta is always explicit VR / little endian
+function read_meta(st::IO)
    dcm = Dict{Tuple{UInt16,UInt16},Any}()
    is_explicit = true
    endian = :little

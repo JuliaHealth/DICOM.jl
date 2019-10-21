@@ -31,10 +31,10 @@ end
     fileCT = download_dicom("CT_Explicit_Little.dcm")
     fileMG = download_dicom("MG_Explicit_Little.dcm")
 
-    dcmMR_partial = dcm_parse(fileMR, maxGrp=0x0008)
+    dcmMR_partial = dcm_parse(fileMR, max_group=0x0008)
     dcmMR = dcm_parse(fileMR)
     dcmCT = dcm_parse(fileCT)
-    (dcmMG, vrMG) = dcm_parse(fileMG, true)
+    (dcmMG, vrMG) = dcm_parse(fileMG, return_vr = true)
 
     @test dcmMR_partial[(0x0008,0x0060)] == "MR"
     @test haskey(dcmMR_partial, (0x7FE0,0x0010)) == false
@@ -59,7 +59,7 @@ end
 
     dcmMR = dcm_parse(fileMR)
     dcmCT = dcm_parse(fileCT)
-    (dcmMG, vrMG) = dcm_parse(fileMG, true)
+    (dcmMG, vrMG) = dcm_parse(fileMG, return_vr=true)
 
     # Define two output files for each dcm - data will be saved, reloaded, then saved again
     outMR1 = joinpath(data_folder,"outMR1.dcm")
@@ -73,16 +73,16 @@ end
     # Write DICOM files
     outIO = open(outMR1, "w+"); dcm_write(outIO,dcmMR); close(outIO)
     outIO = open(outCT1, "w+"); dcm_write(outIO,dcmCT); close(outIO)
-    outIO = open(outMG1, "w+"); dcm_write(outIO,dcmMG,vrMG); close(outIO)
-    dcm_write(outMG1b,dcmMG,vrMG)
+    outIO = open(outMG1, "w+"); dcm_write(outIO,dcmMG,aux_vr=vrMG); close(outIO)
+    dcm_write(outMG1b,dcmMG,aux_vr=vrMG)
     # Reading DICOM files which were written from previous step
     dcmMR1 = dcm_parse(outMR1)
     dcmCT1 = dcm_parse(outCT1)
-    (dcmMG1, vrMG1) = dcm_parse(outMG1, true)
+    (dcmMG1, vrMG1) = dcm_parse(outMG1, return_vr=true)
     # Write DICOM files which were re-read from previous step
     outIO = open(outMR2, "w+"); dcm_write(outIO,dcmMR1); close(outIO)
     outIO = open(outCT2, "w+"); dcm_write(outIO,dcmCT1); close(outIO)
-    outIO = open(outMG2, "w+"); dcm_write(outIO,dcmMG1, vrMG1); close(outIO)
+    outIO = open(outMG2, "w+"); dcm_write(outIO,dcmMG1, aux_vr=vrMG1); close(outIO)
 
     # Test consistency of written files after the write-read-write cycle
     @test read(outMR1)==read(outMR2)
@@ -104,12 +104,12 @@ end
 end
 
 @testset "Uncommon DICOM" begin
-    # 1. DICOM file with missing header
+    # 1. DICOM file with missing preamble
     fileOT = download_dicom("OT_Implicit_Little_Headless.dcm")
-    dcmOT = dcm_parse(fileOT, header=false)
+    dcmOT = dcm_parse(fileOT, preamble=false)
     @test dcmOT[(0x0008,0x0060)] == "OT"
 
-    # 2. DICOM file with missing header and retired DICOM elements
+    # 2. DICOM file with missing preamble and retired DICOM elements
     fileCT = download_dicom("CT_Implicit_Little_Headless_Retired.dcm")
     # 2a. Read with user-supplied VRs
     dVR_CTa = Dict(
@@ -124,12 +124,12 @@ end
         (0x0028,0x0005) => "US",
         (0x0028,0x0040) => "CS",
         (0x0028,0x0200) => "US")
-    dcmCTa = dcm_parse(fileCT, header=false, dVR=dVR_CTa);
+    dcmCTa = dcm_parse(fileCT, preamble=false, aux_vr=dVR_CTa);
     # 2b. Read with a master VR which skips elements
     # Here we skip any element where lookup_vr() fails
     # And we also force (0x0018,0x1170) to be read as float instead of integer
     dVR_CTb = Dict( (0x0000,0x0000) => "",  (0x0018,0x1170) => "DS")
-    dcmCTb = dcm_parse(fileCT, header=false, dVR=dVR_CTb);
+    dcmCTb = dcm_parse(fileCT, preamble=false, aux_vr=dVR_CTb);
     @test dcmCTa[(0x0008,0x0060)] == "CT"
     @test dcmCTb[(0x0008,0x0060)] == "CT"
     @test haskey(dcmCTa, (0x0028,0x0040)) # dcmCTa should contain retired element
