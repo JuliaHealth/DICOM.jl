@@ -13,7 +13,8 @@ const dicom_samples = Dict(
     "MR_Explicit_Little_MultiFrame.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Explicit_Little_MultiFrame.dcm",
     "MR_Implicit_Little.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Implicit_Little.dcm",
     "MR_UnspecifiedLength.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_UnspecifiedLength.dcm",
-    "OT_Implicit_Little_Headless.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/OT_Implicit_Little_Headless.dcm"
+    "OT_Implicit_Little_Headless.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/OT_Implicit_Little_Headless.dcm",
+    "US_Explicit_Big_RGB.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/US_Explicit_Big_RGB.dcm"
 )
 
 function download_dicom(filename; folder = data_folder)
@@ -144,6 +145,13 @@ end
     fileMR_UnspecifiedLength = download_dicom("MR_UnspecifiedLength.dcm")
     dcmMR_UnspecifiedLength = dcm_parse(fileMR_UnspecifiedLength)
     @test size(dcmMR_UnspecifiedLength[tag"Pixel Data"]) === (256, 256, 27)
+end
+
+@testset "Test big endian" begin
+    fileUS = download_dicom("US_Explicit_Big_RGB.dcm")
+    dcmUS = dcm_parse(fileUS)
+    @test Int(dcmUS[(0x7fe0, 0x0000)]) == 921612
+    @test size(dcmUS[(0x7fe0, 0x0010)]) == (640, 480, 3)
 end
 
 @testset "Test tag macro" begin
