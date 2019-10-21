@@ -382,12 +382,12 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
    # (0028,0010) defines number of rows
    f = get(dcm, (0x0028,0x0010), nothing)
    if f !== nothing
-       xr = Int(f)
+       yr = Int(f)
    end
    # (0028,0011) defines number of columns
    f = get(dcm, (0x0028,0x0011), nothing)
    if f !== nothing
-       yr = Int(f)
+       xr = Int(f)
    end
    # (0028,0012) defines number of planes
    f = get(dcm, (0x0028,0x0012), nothing)
@@ -399,9 +399,17 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
    if f !== nothing
        zr *= Int(f)
    end
+   # (0x0028, 0x0002) defines number of samples per pixel
+   f = get(dcm, (0x0028, 0x0002), nothing)
+   if f !== nothing
+       samples_per_pixel = Int(f)
+   else
+       samples_per_pixel = 1
+   end
    if sz != 0xffffffff
-       data =
-       zr > 1 ? Array{dtype}(undef, xr, yr, zr) : Array{dtype}(undef, xr, yr)
+       data_dims = [xr, yr, zr, samples_per_pixel]
+       data_dims = data_dims[data_dims .> 1]
+       data = Array{dtype}(undef, data_dims...)
        read!(st, data)
    else
        # start with Basic Offset Table Item
