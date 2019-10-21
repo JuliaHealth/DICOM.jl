@@ -35,10 +35,10 @@ include("dcm_dict.jl")  # const dcm_dict = ...
 fieldname_dict = Dict(val[1] => key for (key, val) in dcm_dict)
 
 # These "empty" values are used internally. They are returned if a search fails.
-const emptyVR = "" # Can be any VR that doesn't exist
-const emptyVR_lookup = ["", emptyVR, ""] # Used in lookup_vr as failure state
-const emptyTag = (0x0000,0x0000)
-const emptyDcmDict = Dict(DICOM.emptyTag => nothing)
+const empty_vr = "" # Can be any VR that doesn't exist
+const empty_vr_lookup = ["", empty_vr, ""] # Used in lookup_vr as failure state
+const empty_tag = (0x0000,0x0000)
+const empty_dcm_dict = Dict(DICOM.empty_tag => nothing)
 
 const VR_names = [ "AE","AS","AT","CS","DA","DS","DT","FL","FD","IS","LO","LT","OB","OF",
        "OW","PN","SH","SL","SQ","SS","ST","TM","UI","UL","UN","US","UT" ]
@@ -66,7 +66,7 @@ function lookup_vr(gelt::Tuple{UInt16,UInt16})
     elseif gelt[1]&0xff00 == 0x6000
         gelt = (0x6000,gelt[2])
     end
-    r = get(dcm_dict, gelt, emptyVR_lookup)
+    r = get(dcm_dict, gelt, empty_vr_lookup)
     return(r[2])
 end
 
@@ -126,16 +126,16 @@ function check_header(st)
    return
 end
 
-# Pre-ample is always explicit VR / little endian
+# Preamble is always explicit VR / little endian
 function read_preamble(st::IO)
    dcm = Dict{Tuple{UInt16,UInt16},Any}()
    is_explicit = true
    endian = :little
    while true
        pos = position(st)
-       (gelt, data, vr) = read_element(st, (is_explicit, endian, emptyDcmDict))
+       (gelt, data, vr) = read_element(st, (is_explicit, endian, empty_dcm_dict))
        grp = gelt[1]
-       if grp > 0x0002 || gelt == emptyTag
+       if grp > 0x0002 || gelt == empty_tag
            seek(st, pos)
            return dcm
        else
@@ -164,7 +164,7 @@ function read_body(st, dcm, props; max_group)
    vrs = Dict{Tuple{UInt16,UInt16},String}()
    while true
        (gelt, data, vr) = read_element(st, props, dcm)
-       if gelt == emptyTag || gelt[1] > max_group
+       if gelt == empty_tag || gelt[1] > max_group
            break
        else
            dcm[gelt] = data
@@ -174,13 +174,13 @@ function read_body(st, dcm, props; max_group)
    return dcm, vrs
 end
 
-function read_element(st::IO, props, dcm=emptyDcmDict)
+function read_element(st::IO, props, dcm=empty_dcm_dict)
    (is_explicit, endian, aux_vr) = props
    local grp
    try
        grp = read_group_tag(st, endian)
    catch
-       return(emptyTag,0,emptyVR)
+       return(empty_tag,0,empty_vr)
    end
    elt = read_element_tag(st, endian)
    gelt = (grp, elt)
@@ -277,7 +277,7 @@ function determine_vr_and_lentype(st, gelt, is_explicit, aux_vr)
    if haskey(aux_vr, gelt)
        vr = aux_vr[gelt]
    end
-   if vr === emptyVR
+   if vr === empty_vr
        if haskey(aux_vr, (0x0000,0x0000))
            vr = aux_vr[(0x0000,0x0000)]
        elseif !haskey(aux_vr, gelt)
@@ -471,7 +471,7 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
     else
         vr = lookup_vr(gelt)
     end
-    if vr === emptyVR
+    if vr === empty_vr
         # Element tags ending in 0x0000 are not included in dcm_dicm.jl, their vr is UL
         if gelt[2] == 0x0000
             vr = "UL"
@@ -490,7 +490,7 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
     end
 
     if vr == "SQ"
-        vr = is_explicit ? vr : emptyVR
+        vr = is_explicit ? vr : empty_vr
         return dcm_store(st, gelt,
                          s->sequence_write(s, data, is_explicit), vr)
     end
@@ -516,7 +516,7 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
     data
 
     if !is_explicit && gelt[1]>0x0002
-        vr = emptyVR
+        vr = empty_vr
     end
 
     dcm_store(st, gelt, s->write(s, data), vr)
@@ -529,12 +529,12 @@ string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
 string_write(vals::String, maxlen) = string_write([vals], maxlen)
 string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
 
-dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function) = dcm_store(st, gelt, writef, emptyVR)
+dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function) = dcm_store(st, gelt, writef, empty_vr)
 function dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function, vr::String)
     lentype = UInt32
     write(st, UInt16(gelt[1])) # Grp
     write(st, UInt16(gelt[2])) # Elt
-    if vr !== emptyVR
+    if vr !== empty_vr
         write(st, vr)
         if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
             write(st, UInt16(0))
@@ -576,7 +576,7 @@ end
 
 function sequence_item_write(st::IO, items::Dict{Tuple{UInt16,UInt16},Any}, evr)
     for gelt in sort(collect(keys(items)))
-        write_element(st, gelt, items[gelt], evr, emptyDcmDict)
+        write_element(st, gelt, items[gelt], evr, empty_dcm_dict)
     end
     write(st, UInt16[0xFFFE, 0xE00D, 0x0000, 0x0000])
 end
