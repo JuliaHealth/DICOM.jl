@@ -135,11 +135,16 @@ function undefined_length(st, vr)
     take!(data)
 end
 
+<<<<<<< HEAD
 function sequence_item(st::IO, evr, sz)
+=======
+
+function sequence_item(st::IOStream, evr, sz,endian)
+>>>>>>> 5f0a7db7c88445881eeab22fda25863c32a41292
     item = Dict{Tuple{UInt16,UInt16},Any}()
     endpos = position(st) + sz
     while position(st) < endpos
-        (gelt, data, vr) = element(st, evr)
+          (gelt, data, vr) = element(st, evr,endian)
         if isequal(gelt, (0xFFFE,0xE00D))
             break
         end
@@ -155,19 +160,19 @@ function sequence_item_write(st::IO, evr::Bool, items::Dict{Tuple{UInt16,UInt16}
     write(st, UInt16[0xFFFE, 0xE00D, 0x0000, 0x0000])
 end
 
-function sequence_parse(st, evr, sz)
+function sequence_parse(st, evr, sz,endian)
     sq = Array{Dict{Tuple{UInt16,UInt16},Any},1}()
     while sz > 0
-        grp = read(st, UInt16)
-        elt = read(st, UInt16)
-        itemlen = read(st, UInt32)
+        grp = order(read(st, UInt16), endian)
+        elt = order(read(st, UInt16), endian)
+        itemlen = order(read(st, UInt32), endian)
         if grp==0xFFFE && elt==0xE0DD
             return sq
         end
         if grp != 0xFFFE || elt != 0xE000
             error("dicom: expected item tag in sequence")
         end
-        push!(sq, sequence_item(st, evr, itemlen))
+        push!(sq, sequence_item(st, evr, itemlen, endian))
         sz -= 8 + (itemlen != 0xffffffff) * itemlen
     end
     return sq
@@ -206,7 +211,6 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm=emptyDcmDict)
     else
         dtype = isSigned ? Int16 : UInt16
     end
-
     yr=1
     zr=1
     # (0028,0010) defines number of rows
@@ -278,6 +282,7 @@ function skip_spaces(st, endpos)
             return c
         end
     end
+    return '\0'
 end
 
 function string_parse(st, sz, maxlen, spaces)
@@ -304,7 +309,18 @@ end
 
 numeric_parse(st::IO, T::DataType, sz) = T[read(st, T) for i=1:div(sz,sizeof(T))]
 
+<<<<<<< HEAD
 function element(st::IO, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt16},String}())
+=======
+
+if ENDIAN_BOM == 0x04030201
+  order(x, endian) = endian == :little ? x : bswap.(x)
+else
+  order(x, endian) = endian == :big ? x : bswap.(x)
+end
+
+function element(st::IOStream, evr::Bool, endian=:little, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt16},String}())
+>>>>>>> 5f0a7db7c88445881eeab22fda25863c32a41292
     lentype = UInt32
     diffvr = false
     local grp
@@ -313,11 +329,16 @@ function element(st::IO, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt
     catch
         return(emptyTag,0,emptyVR)
     end
-    elt = read(st, UInt16)
-    gelt = (grp,elt)
     if grp <= 0x0002
+<<<<<<< HEAD
+=======
+        endian = :little
+>>>>>>> 5f0a7db7c88445881eeab22fda25863c32a41292
         evr = true
     end
+    grp = order(grp, endian)
+    elt = order(read(st, UInt16), endian)
+    gelt = (grp,elt)
     if evr && !always_implicit(grp,elt)
         vr = String(read!(st, Array{UInt8}(undef, 2)))
         if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
@@ -347,13 +368,13 @@ function element(st::IO, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt
         end
     end
 
-    sz = read(st,lentype)
+    sz = order(read(st,lentype), endian)
 
     # Empty VR can be supplied in dVR to skip an element
     if vr == ""
         sz = isodd(sz) ? sz+1 : sz
         skip(st,sz)
-        return(element(st,evr,dcm,dVR))
+        return(element(st,evr,endian,dcm,dVR))
     end
 
     data =
@@ -361,27 +382,29 @@ function element(st::IO, evr::Bool, dcm=emptyDcmDict, dVR=Dict{Tuple{UInt16,UInt
 
     sz==0 || vr=="XX" ? Any[] :
 
-    vr == "SQ" ? sequence_parse(st, evr, sz) :
+    vr == "SQ" ? sequence_parse(st, evr, sz, endian) :
 
     gelt == (0x7FE0,0x0010) ? pixeldata_parse(st, sz, vr, dcm) :
 
     sz == 0xffffffff ? undefined_length(st, vr) :
 
-    vr == "FL" ? numeric_parse(st, Float32, sz) :
-    vr == "FD" ? numeric_parse(st, Float64, sz) :
-    vr == "SL" ? numeric_parse(st, Int32  , sz) :
-    vr == "SS" ? numeric_parse(st, Int16  , sz) :
-    vr == "UL" ? numeric_parse(st, UInt32 , sz) :
-    vr == "US" ? numeric_parse(st, UInt16 , sz) :
+    vr == "FL" ? order(numeric_parse(st, Float32, sz), endian) :
+    vr == "FD" ? order(numeric_parse(st, Float64, sz), endian) :
+    vr == "SL" ? order(numeric_parse(st, Int32  , sz), endian) :
+    vr == "SS" ? order(numeric_parse(st, Int16  , sz), endian) :
+    vr == "UL" ? order(numeric_parse(st, UInt32 , sz), endian) :
+    vr == "US" ? order(numeric_parse(st, UInt16 , sz), endian) :
 
-    vr == "OB" ? read!(st, Array{UInt8}(undef, sz))        :
-    vr == "OF" ? read!(st, Array{Float32}(undef, div(sz,4))) :
-    vr == "OW" ? read!(st, Array{UInt16}(undef, div(sz,2))) :
+    vr == "OB" ? order(read(st, UInt8  , sz),endian)        :
+    vr == "OF" ? order(read(st, Float32, div(sz,4)), endian) :
+    vr == "OW" ? order(read(st, UInt16 , div(sz,2)), endian) :
+
+    vr == "AT" ? [ order(read(st,UInt16,2), endian) for n=1:div(sz,4) ] :
 
     vr == "AT" ? [ read!(st, Array{UInt16}(undef, 2)) for n=1:div(sz,4) ] :
 
-    vr == "DS" ? map(x->parse(Float64,x), string_parse(st, sz, 16, false)) :
-    vr == "IS" ? map(x->parse(Int,x), string_parse(st, sz, 12, false)) :
+    vr == "DS" ? map(x->x=="" ? 0. : parse(Float64,x), string_parse(st, sz, 16, false)) :
+    vr == "IS" ? map(x->x=="" ? 0  : parse(Int,x), string_parse(st, sz, 12, false)) :
 
     vr == "AE" ? string_parse(st, sz, 16, false) :
     vr == "CS" ? string_parse(st, sz, 16, false) :
@@ -511,9 +534,9 @@ function dcm_parse(st::IO, giveVR=false; header=true, maxGrp=0xffff, dVR=Dict{Tu
     if giveVR
         dcmVR = Dict{Tuple{UInt16,UInt16},String}()
     end
-
+    endian = :little
     while true
-        (gelt, data, vr) = element(st, evr, dcm, dVR)
+        (gelt, data, vr) = element(st, evr, endian, dcm, dVR) # element(st, evr, dcm, dVR)
         if gelt === emptyTag || gelt[1] > maxGrp
             break
         else
@@ -528,9 +551,9 @@ function dcm_parse(st::IO, giveVR=false; header=true, maxGrp=0xffff, dVR=Dict{Tu
             metaInfo = get(meta_uids, data, (false, true))
             evr = metaInfo[2]
             if metaInfo[1]
-                # todo: set byte order to big
+                endian = :big
             else
-                # todo: set byte order to little
+                endian = :little
             end
         end
     end
