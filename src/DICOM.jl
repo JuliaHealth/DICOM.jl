@@ -460,8 +460,8 @@ function dcm_write(fn::String, d::Dict{Tuple{UInt16,UInt16},Any}; kwargs...)
     return fn
 end
 
-function dcm_write(st::IO, dcm::Dict{Tuple{UInt16,UInt16},Any}; header=true, aux_vr=Dict{Tuple{UInt16,UInt16},String}())
-    if header
+function dcm_write(st::IO, dcm::Dict{Tuple{UInt16,UInt16},Any}; preamble=true, aux_vr=Dict{Tuple{UInt16,UInt16},String}())
+    if preamble
         write(st, zeros(UInt8, 128))
         write(st, "DICM")
     end
