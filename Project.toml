@@ -1,6 +1,6 @@
 name = "DICOM"
 uuid = "a26e6606-dd52-5f6a-a97f-4f611373d757"
-version = "0.4.0"
+version = "0.5.0"
 
 [compat]
 julia = "0.7, 1"
