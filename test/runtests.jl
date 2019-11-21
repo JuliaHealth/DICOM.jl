@@ -14,7 +14,8 @@ const dicom_samples = Dict(
     "MR_Implicit_Little.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Implicit_Little.dcm",
     "MR_UnspecifiedLength.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_UnspecifiedLength.dcm",
     "OT_Implicit_Little_Headless.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/OT_Implicit_Little_Headless.dcm",
-    "US_Explicit_Big_RGB.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/US_Explicit_Big_RGB.dcm"
+    "US_Explicit_Big_RGB.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/US_Explicit_Big_RGB.dcm",
+    "DX_Implicit_Little_Interleaved.dcm" => "https://github.com/OHIF/viewer-testdata/raw/master/dcm/zoo-exotic/5.dcm"
 )
 
 function download_dicom(filename; folder = data_folder)
@@ -152,6 +153,12 @@ end
     dcmUS = dcm_parse(fileUS)
     @test Int(dcmUS[(0x7fe0, 0x0000)]) == 921612
     @test size(dcmUS[(0x7fe0, 0x0010)]) == (480, 640, 3)
+end
+
+@testset "Test interleaved" begin
+    fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
+    dcmDX = dcm_parse(fileDX)
+    @test size(dcmDX[(0x7fe0, 0x0010)]) == (1590, 2593, 3)
 end
 
 @testset "Test tag macro" begin
