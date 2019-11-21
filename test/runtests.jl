@@ -151,7 +151,7 @@ end
     fileUS = download_dicom("US_Explicit_Big_RGB.dcm")
     dcmUS = dcm_parse(fileUS)
     @test Int(dcmUS[(0x7fe0, 0x0000)]) == 921612
-    @test size(dcmUS[(0x7fe0, 0x0010)]) == (640, 480, 3)
+    @test size(dcmUS[(0x7fe0, 0x0010)]) == (480, 640, 3)
 end
 
 @testset "Test tag macro" begin

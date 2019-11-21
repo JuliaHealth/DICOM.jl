@@ -407,10 +407,25 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
        samples_per_pixel = 1
    end
    if sz != 0xffffffff
-       data_dims = [xr, yr, zr, samples_per_pixel]
+       is_interleaved = get(dcm, (0x0028, 0x0006), nothing) == 0
+       if is_interleaved
+           data_dims = [samples_per_pixel, xr, yr, zr]
+       else
+           data_dims = [xr, yr, zr, samples_per_pixel]
+       end
        data_dims = data_dims[data_dims .> 1]
        data = Array{dtype}(undef, data_dims...)
        read!(st, data)
+       # Permute because Julia is column-major while DICOM is row-major 
+       numdims = ndims(data)
+       if numdims == 2
+           perm = (2,1)
+       elseif numdims == 3
+           perm = is_interleaved ? (3,2,1) : (2,1,3)
+       elseif numdims == 4
+           perm = is_interleaved ? (3,2,1,4) : (2,1,3,4)
+       end
+       data = permutedims(data, perm)
    else
        # start with Basic Offset Table Item
        data = Array{Any,1}(element(st, false)[2])
@@ -597,7 +612,12 @@ function pixeldata_write(st, d, evr)
     vr = nt === UInt8  || nt === Int8  ? "OB" :
          nt === UInt16 || nt === Int16 ? "OW" :
          nt === Float32                ? "OF" :
-         error("dicom: unsupported pixel format")
+         error("dicom: unsupported pixel format") 
+    # Permute because Julia is column-major while DICOM is row-major 
+    # !warn! This part assumes that Planar Configuration (tag: 0x0028, 0x0006) is not 0
+    numdims = ndims(d)
+    perm = numdims == 2 ? (2,1) : numdims == 3 ? (2,1,3) : (2,1,3,4)
+    d = permutedims(d, perm)
     if evr !== false
         dcm_store(st, (0x7FE0,0x0010), s->write(s,d), vr)
     elseif vr != "OW"
