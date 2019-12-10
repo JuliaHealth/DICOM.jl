@@ -82,30 +82,20 @@ end
     outMG2 = joinpath(data_folder, "outMG2.dcm")
 
     # Write DICOM files
-    outIO = open(outMR1, "w+")
-    dcm_write(outIO, dcmMR)
-    close(outIO)
-    outIO = open(outCT1, "w+")
-    dcm_write(outIO, dcmCT)
-    close(outIO)
-    outIO = open(outMG1, "w+")
-    dcm_write(outIO, dcmMG, aux_vr = vrMG)
-    close(outIO)
-    dcm_write(outMG1b, dcmMG, aux_vr = vrMG)
+    dcm_write(outMR1, dcmMR)
+    dcm_write(outCT1, dcmCT)
+    dcm_write(outMG1, dcmMG; aux_vr = vrMG)
+    open(outMG1b, "w") do io
+        dcm_write(io, dcmMG; aux_vr = vrMG)
+    end
     # Reading DICOM files which were written from previous step
     dcmMR1 = dcm_parse(outMR1)
     dcmCT1 = dcm_parse(outCT1)
     (dcmMG1, vrMG1) = dcm_parse(outMG1, return_vr = true)
     # Write DICOM files which were re-read from previous step
-    outIO = open(outMR2, "w+")
-    dcm_write(outIO, dcmMR1)
-    close(outIO)
-    outIO = open(outCT2, "w+")
-    dcm_write(outIO, dcmCT1)
-    close(outIO)
-    outIO = open(outMG2, "w+")
-    dcm_write(outIO, dcmMG1, aux_vr = vrMG1)
-    close(outIO)
+    dcm_write(outMR2, dcmMR1)
+    dcm_write(outCT2, dcmCT1)
+    dcm_write(outMG2, dcmMG1; aux_vr = vrMG1)
 
     # Test consistency of written files after the write-read-write cycle
     @test read(outMR1) == read(outMR2)
@@ -159,6 +149,8 @@ end
     @test haskey(dcmCTa, (0x0028, 0x0040)) # dcmCTa should contain retired element
     @test !haskey(dcmCTb, (0x0028, 0x0040)) # dcmCTb skips retired elements
 
+    rescale!(dcmCTa)
+    rescale!(dcmCTb)
     @test minimum(dcmCTa[(0x7fe0, 0x0010)]) == -949
     @test maximum(dcmCTa[(0x7fe0, 0x0010)]) == 1132
     @test minimum(dcmCTa[(0x7fe0, 0x0010)]) == minimum(dcmCTb[(0x7fe0, 0x0010)])

@@ -1,6 +1,6 @@
 module DICOM
 
-export dcm_parse, dcm_write, lookup, lookup_vr
+export dcm_parse, dcm_write, lookup, lookup_vr, rescale!
 export @tag_str
 
 """
@@ -103,7 +103,7 @@ function lookup(d::Dict{Tuple{UInt16,UInt16},Any}, fieldnameString::String)
     return (get(d, fieldname_dict[fieldnameString], nothing))
 end
 
-function rescale_pixel_data!(dcm::Dict{Tuple{UInt16,UInt16},Any}, direction = :forward)
+function rescale!(dcm::Dict{Tuple{UInt16,UInt16},Any}, direction = :forward)
     if !haskey(dcm, tag"Rescale Intercept") || !haskey(dcm, tag"Rescale Slope")
         return dcm
     end
@@ -160,7 +160,6 @@ function dcm_parse(
     is_explicit, endian = determine_explicitness_and_endianness(dcm)
     file_properties = (is_explicit = is_explicit, endian = endian, aux_vr = aux_vr)
     (dcm, vr) = read_body(st, dcm, file_properties; max_group = max_group)
-    rescale_pixel_data!(dcm)
     if return_vr
         return dcm, vr
     else
@@ -548,7 +547,6 @@ function dcm_write(
         write(st, "DICM")
     end
     (is_explicit, endian) = determine_explicitness_and_endianness(dcm)
-    rescale_pixel_data!(dcm, :backward)
     for gelt in sort(collect(keys(dcm)))
         write_element(st, gelt, dcm[gelt], is_explicit, aux_vr)
     end
