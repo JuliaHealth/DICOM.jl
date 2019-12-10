@@ -1,6 +1,6 @@
 module DICOM
 
-export dcm_parse, dcm_write, lookup, lookup_vr
+export dcm_parse, dcm_write, lookup, lookup_vr, rescale!
 export @tag_str
 
 """
@@ -101,6 +101,23 @@ end
 
 function lookup(d::Dict{Tuple{UInt16,UInt16},Any}, fieldnameString::String)
     return (get(d, fieldname_dict[fieldnameString], nothing))
+end
+
+function rescale!(dcm::Dict{Tuple{UInt16,UInt16},Any}, direction = :forward)
+    if !haskey(dcm, tag"Rescale Intercept") || !haskey(dcm, tag"Rescale Slope")
+        return dcm
+    end
+    if direction == :forward
+        dcm[tag"Pixel Data"] =
+            @. dcm[tag"Pixel Data"] * dcm[tag"Rescale Slope"] + dcm[tag"Rescale Intercept"]
+    else
+        pixel_data = dcm[tag"Pixel Data"]
+        @. pixel_data -= dcm[tag"Rescale Intercept"]
+        @. pixel_data /= dcm[tag"Rescale Slope"]
+        dtype = determine_dtype(dcm)
+        dcm[tag"Pixel Data"] = @. convert(dtype, round(pixel_data))
+    end
+    return dcm
 end
 
 if ENDIAN_BOM == 0x04030201
@@ -393,28 +410,7 @@ end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
 function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
-   # (0x0028,0x0103) defines Pixel Representation
-    isSigned = false
-    f = get(dcm, (0x0028, 0x0103), nothing)
-    if f !== nothing
-       # Data is signed if f==1
-        isSigned = f == 1
-    end
-   # (0x0028,0x0100) defines Bits Allocated
-    bitType = 16
-    f = get(dcm, (0x0028, 0x0100), nothing)
-    if f !== nothing
-        bitType = Int(f)
-    else
-        f = get(dcm, (0x0028, 0x0101), nothing)
-        bitType = f !== nothing ? Int(f) : vr == "OB" ? 8 : 16
-    end
-    if bitType == 8
-        dtype = isSigned ? Int8 : UInt8
-    else
-        dtype = isSigned ? Int16 : UInt16
-    end
-
+    dtype = determine_dtype(dcm)
     yr = 1
     zr = 1
    # (0028,0010) defines number of rows
@@ -454,7 +450,7 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
         data_dims = data_dims[data_dims.>1]
         data = Array{dtype}(undef, data_dims...)
         read!(st, data)
-       # Permute because Julia is column-major while DICOM is row-major 
+       # Permute because Julia is column-major while DICOM is row-major
         numdims = ndims(data)
         if numdims == 2
             perm = (2, 1)
@@ -484,6 +480,31 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
         end
     end
     return order.(data, endian)
+end
+
+function determine_dtype(dcm)
+    # (0x0028,0x0103) defines Pixel Representation
+    is_signed = false
+    f = get(dcm, (0x0028, 0x0103), nothing)
+    if f !== nothing
+        # Data is signed if f==1
+        is_signed = f == 1
+    end
+    bit_type = 16
+    # (0x0028,0x0100) defines Bits Allocated
+    f = get(dcm, (0x0028, 0x0100), nothing)
+    if f !== nothing
+        bit_type = Int(f)
+    else
+        f = get(dcm, (0x0028, 0x0101), nothing)
+        bit_type = f !== nothing ? Int(f) : vr == "OB" ? 8 : 16
+    end
+    if bit_type == 8
+        dtype = is_signed ? Int8 : UInt8
+    else
+        dtype = is_signed ? Int16 : UInt16
+    end
+    return dtype
 end
 
 function undefined_length(st, vr)
@@ -526,7 +547,6 @@ function dcm_write(
         write(st, "DICM")
     end
     (is_explicit, endian) = determine_explicitness_and_endianness(dcm)
-
     for gelt in sort(collect(keys(dcm)))
         write_element(st, gelt, dcm[gelt], is_explicit, aux_vr)
     end
@@ -656,7 +676,7 @@ function pixeldata_write(st, d, evr)
     vr = nt === UInt8 || nt === Int8 ? "OB" :
         nt === UInt16 || nt === Int16 ? "OW" :
         nt === Float32 ? "OF" : error("dicom: unsupported pixel format")
-    # Permute because Julia is column-major while DICOM is row-major 
+    # Permute because Julia is column-major while DICOM is row-major
     # !warn! This part assumes that Planar Configuration (tag: 0x0028, 0x0006) is not 0
     numdims = ndims(d)
     perm = numdims == 2 ? (2, 1) : numdims == 3 ? (2, 1, 3) : (2, 1, 3, 4)
