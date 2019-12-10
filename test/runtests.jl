@@ -7,15 +7,24 @@ if !isdir(data_folder)
 end
 
 const dicom_samples = Dict(
-    "CT_Explicit_Little.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_Explicit_Little.dcm",
-    "CT_Implicit_Little_Headless_Retired.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_Implicit_Little_Headless_Retired.dcm",
-    "MG_Explicit_Little.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MG_Explicit_Little.dcm",
-    "MR_Explicit_Little_MultiFrame.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Explicit_Little_MultiFrame.dcm",
-    "MR_Implicit_Little.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Implicit_Little.dcm",
-    "MR_UnspecifiedLength.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_UnspecifiedLength.dcm",
-    "OT_Implicit_Little_Headless.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/OT_Implicit_Little_Headless.dcm",
-    "US_Explicit_Big_RGB.dcm" => "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/US_Explicit_Big_RGB.dcm",
-    "DX_Implicit_Little_Interleaved.dcm" => "https://github.com/OHIF/viewer-testdata/raw/master/dcm/zoo-exotic/5.dcm"
+    "CT_Explicit_Little.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_Explicit_Little.dcm",
+    "CT_Implicit_Little_Headless_Retired.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_Implicit_Little_Headless_Retired.dcm",
+    "MG_Explicit_Little.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MG_Explicit_Little.dcm",
+    "MR_Explicit_Little_MultiFrame.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Explicit_Little_MultiFrame.dcm",
+    "MR_Implicit_Little.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_Implicit_Little.dcm",
+    "MR_UnspecifiedLength.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/MR_UnspecifiedLength.dcm",
+    "OT_Implicit_Little_Headless.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/OT_Implicit_Little_Headless.dcm",
+    "US_Explicit_Big_RGB.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/US_Explicit_Big_RGB.dcm",
+    "DX_Implicit_Little_Interleaved.dcm" =>
+        "https://github.com/OHIF/viewer-testdata/raw/master/dcm/zoo-exotic/5.dcm",
 )
 
 function download_dicom(filename; folder = data_folder)
@@ -73,18 +82,30 @@ end
     outMG2 = joinpath(data_folder, "outMG2.dcm")
 
     # Write DICOM files
-    outIO = open(outMR1, "w+"); dcm_write(outIO, dcmMR); close(outIO)
-    outIO = open(outCT1, "w+"); dcm_write(outIO, dcmCT); close(outIO)
-    outIO = open(outMG1, "w+"); dcm_write(outIO, dcmMG, aux_vr = vrMG); close(outIO)
+    outIO = open(outMR1, "w+")
+    dcm_write(outIO, dcmMR)
+    close(outIO)
+    outIO = open(outCT1, "w+")
+    dcm_write(outIO, dcmCT)
+    close(outIO)
+    outIO = open(outMG1, "w+")
+    dcm_write(outIO, dcmMG, aux_vr = vrMG)
+    close(outIO)
     dcm_write(outMG1b, dcmMG, aux_vr = vrMG)
     # Reading DICOM files which were written from previous step
     dcmMR1 = dcm_parse(outMR1)
     dcmCT1 = dcm_parse(outCT1)
     (dcmMG1, vrMG1) = dcm_parse(outMG1, return_vr = true)
     # Write DICOM files which were re-read from previous step
-    outIO = open(outMR2, "w+"); dcm_write(outIO, dcmMR1); close(outIO)
-    outIO = open(outCT2, "w+"); dcm_write(outIO, dcmCT1); close(outIO)
-    outIO = open(outMG2, "w+"); dcm_write(outIO, dcmMG1, aux_vr = vrMG1); close(outIO)
+    outIO = open(outMR2, "w+")
+    dcm_write(outIO, dcmMR1)
+    close(outIO)
+    outIO = open(outCT2, "w+")
+    dcm_write(outIO, dcmCT1)
+    close(outIO)
+    outIO = open(outMG2, "w+")
+    dcm_write(outIO, dcmMG1, aux_vr = vrMG1)
+    close(outIO)
 
     # Test consistency of written files after the write-read-write cycle
     @test read(outMR1) == read(outMR2)
@@ -125,13 +146,14 @@ end
         (0x0020, 0x0070) => "LO",
         (0x0028, 0x0005) => "US",
         (0x0028, 0x0040) => "CS",
-        (0x0028, 0x0200) => "US")
-    dcmCTa = dcm_parse(fileCT, preamble = false, aux_vr = dVR_CTa);
+        (0x0028, 0x0200) => "US",
+    )
+    dcmCTa = dcm_parse(fileCT, preamble = false, aux_vr = dVR_CTa)
     # 2b. Read with a master VR which skips elements
     # Here we skip any element where lookup_vr() fails
     # And we also force (0x0018,0x1170) to be read as float instead of integer
-    dVR_CTb = Dict( (0x0000, 0x0000) => "",  (0x0018, 0x1170) => "DS")
-    dcmCTb = dcm_parse(fileCT, preamble = false, aux_vr = dVR_CTb);
+    dVR_CTb = Dict((0x0000, 0x0000) => "", (0x0018, 0x1170) => "DS")
+    dcmCTb = dcm_parse(fileCT, preamble = false, aux_vr = dVR_CTb)
     @test dcmCTa[(0x0008, 0x0060)] == "CT"
     @test dcmCTb[(0x0008, 0x0060)] == "CT"
     @test haskey(dcmCTa, (0x0028, 0x0040)) # dcmCTa should contain retired element
@@ -167,14 +189,14 @@ end
 end
 
 @testset "Test tag macro" begin
-    @test tag"Modality"                 === (0x0008, 0x0060) ===
-        DICOM.fieldname_dict["Modality"]
-    @test tag"Shutter Overlay Group"    === (0x0018, 0x1623) ===
-        DICOM.fieldname_dict["Shutter Overlay Group"]
+    @test tag"Modality" === (0x0008, 0x0060) === DICOM.fieldname_dict["Modality"]
+    @test tag"Shutter Overlay Group" ===
+          (0x0018, 0x1623) ===
+          DICOM.fieldname_dict["Shutter Overlay Group"]
     @test tag"Histogram Last Bin Value" === (0x0060, 0x3006)
-        DICOM.fieldname_dict["Histogram Last Bin Value"]
+    DICOM.fieldname_dict["Histogram Last Bin Value"]
 
     # test that compile time error is thrown if tag does not exist
-    @test macroexpand(Main,:(tag"Modality")) === (0x0008, 0x0060)
-    @test_throws LoadError macroexpand(Main,:(tag"nonsense"))
+    @test macroexpand(Main, :(tag"Modality")) === (0x0008, 0x0060)
+    @test_throws LoadError macroexpand(Main, :(tag"nonsense"))
 end

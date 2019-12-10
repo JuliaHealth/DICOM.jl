@@ -108,7 +108,8 @@ function rescale_pixel_data!(dcm::Dict{Tuple{UInt16,UInt16},Any}, direction = :f
         return dcm
     end
     if direction == :forward
-        dcm[tag"Pixel Data"] = @. dcm[tag"Pixel Data"] * dcm[tag"Rescale Slope"] + dcm[tag"Rescale Intercept"]
+        dcm[tag"Pixel Data"] =
+            @. dcm[tag"Pixel Data"] * dcm[tag"Rescale Slope"] + dcm[tag"Rescale Intercept"]
     else
         pixel_data = dcm[tag"Pixel Data"]
         @. pixel_data -= dcm[tag"Rescale Intercept"]
@@ -484,12 +485,12 @@ end
 
 function determine_dtype(dcm)
     # (0x0028,0x0103) defines Pixel Representation
-     is_signed = false
-     f = get(dcm, (0x0028, 0x0103), nothing)
-     if f !== nothing
+    is_signed = false
+    f = get(dcm, (0x0028, 0x0103), nothing)
+    if f !== nothing
         # Data is signed if f==1
-         is_signed = f == 1
-     end
+        is_signed = f == 1
+    end
     bit_type = 16
     # (0x0028,0x0100) defines Bits Allocated
     f = get(dcm, (0x0028, 0x0100), nothing)
