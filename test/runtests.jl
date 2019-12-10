@@ -150,9 +150,9 @@ end
     @test !haskey(dcmCTb, (0x0028, 0x0040)) # dcmCTb skips retired elements
 
     rescale!(dcmCTa)
-    rescale!(dcmCTb)
     @test minimum(dcmCTa[(0x7fe0, 0x0010)]) == -949
     @test maximum(dcmCTa[(0x7fe0, 0x0010)]) == 1132
+    rescale!(dcmCTa, :backward)
     @test minimum(dcmCTa[(0x7fe0, 0x0010)]) == minimum(dcmCTb[(0x7fe0, 0x0010)])
     @test maximum(dcmCTa[(0x7fe0, 0x0010)]) == maximum(dcmCTb[(0x7fe0, 0x0010)])
 
