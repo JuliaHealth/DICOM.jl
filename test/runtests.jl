@@ -137,6 +137,11 @@ end
     @test haskey(dcmCTa, (0x0028, 0x0040)) # dcmCTa should contain retired element
     @test !haskey(dcmCTb, (0x0028, 0x0040)) # dcmCTb skips retired elements
 
+    @test minimum(dcmCTa[(0x7fe0, 0x0010)]) == -949
+    @test maximum(dcmCTa[(0x7fe0, 0x0010)]) == 1132
+    @test minimum(dcmCTa[(0x7fe0, 0x0010)]) == minimum(dcmCTb[(0x7fe0, 0x0010)])
+    @test maximum(dcmCTa[(0x7fe0, 0x0010)]) == maximum(dcmCTb[(0x7fe0, 0x0010)])
+
     # 3. DICOM file containing multiple frames
     fileMR_multiframe = download_dicom("MR_Explicit_Little_MultiFrame.dcm")
     dcmMR_multiframe = dcm_parse(fileMR_multiframe)
