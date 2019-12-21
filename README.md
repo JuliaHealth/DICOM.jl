@@ -7,7 +7,7 @@ Julia interface for parsing/writing DICOM files
 
 ## Usage
 
-**Installation** 
+**Installation**
 
 To install the package:
 ```
@@ -24,54 +24,55 @@ julia> using DICOM
 
 Read a DICOM file by
 ```
-julia> dcmData = dcm_parse("path/to/dicom/file")
+julia> dcm_data = dcm_parse("path/to/dicom/file")
 ```
-The data in `dcmData` is structured as a dictionary, and individual DICOM elements can be accessed by their hex tag. 
-For example, the hex tag of "Pixel Data" is `7FE0,0010`, and it can be accessed in Julia by `dcmData[(0x7FE0,0x0010)]` or by `dcmData[tag"Pixel Data"]`. 
+The data in `dcm_data` is structured as a dictionary, and individual DICOM elements can be accessed by their hex tag.
+For example, the hex tag of "Pixel Data" is `7FE0,0010`, and it can be accessed in Julia by `dcm_data[(0x7FE0,0x0010)]` or by `dcm_data[tag"Pixel Data"]`.
 
 **Writing Data**
 
 Data can be written to a DICOM file by
 ```
-julia> dcm_write("path/to/output/file", dcmData)
+julia> dcm_write("path/to/output/file", dcm_data)
 ```
 
 **Additional Notes**
 
+DICOM files should begin with a 128-bytes (which are ignored) followed by the string `DICM`.
+If this preamble is missing, then the file can be parsed by `dcm_parse(path/to/file, preamble = false)`.
+
 DICOM files use either explicit or implicit value representation (VR). For implicit files, `DICOM.jl` will use a lookup table to guess the VR from the DICOM element's hex tag. For explicit files, `DICOM.jl` will read the VRs from the file.  
 
-- A user-defined dictionary can be supplied to override the default lookup table
+- An auxiliary user-defined dictionary can be supplied to override the default lookup table
     For example, the "Instance Number" - tag `(0x0020,0x0013)` - is an integer (default VR = "IS"). We can read this as a float by setting the VR to "DS" by:
     ```
-    myVR = Dict( (0x0020,0x0013) => "DS" )
-    dcmData = dcm_parse("path/to/dicom/file", dVR = myVR)
+    my_vrs = Dict( (0x0020,0x0013) => "DS" )
+    dcm_data = dcm_parse("path/to/dicom/file", aux_vr = my_vrs)
     ```
-    Now `dcmData[(0x0020,0x0013)]` will return a float instead of an integer.
+    Now `dcm_data[(0x0020,0x0013)]` will return a float instead of an integer.
 
-- It is possible to skip an element by setting its VR to `""`. 
+- It is possible to skip an element by setting its VR to `""`.
     For example, we can skip reading the Instance Number by
     ```
-    myVR = Dict( (0x0020,0x0013) => "" )
-    dcmData = dcm_parse("path/to/dicom/file", dVR = myVR)
+    my_vrs = Dict( (0x0020,0x0013) => "" )
+    dcm_data = dcm_parse("path/to/dicom/file", aux_vr = my_vr)
     ```
-    and now `dcmData[(0x0020,0x0013)]` will return an error because the key `(0x0020,0x0013)` doesn't exist - it was skipped during reading.
+    and now `dcm_data[(0x0020,0x0013)]` will return an error because the key `(0x0020,0x0013)` doesn't exist - it was skipped during reading.
 
 - The user-supplied VR can contain a master VR with the tag `(0x0000,0x0000)` which will be used whenever `DICOM.jl` is unable to guess the VR on its own. This is convenient for reading older dicom files and skipping retired elements - i.e. where the VR lookup fails - by:
     ```
-    myVR = Dict( (0x0000,0x0000) => "" )
-    dcmData = dcm_parse("path/to/dicom/file", dVR = myVR)
+    my_vrs = Dict( (0x0000,0x0000) => "" )
+    dcm_data = dcm_parse("path/to/dicom/file", aux_vr = my_vrs)
     ```
 
 - A user-supplied VR can also be supplied during writing, e.g.:
     ```
-    # Note that dcm_write doesn't use a named input, unlike dcm_parse with "dVR ="
-    julia> dcm_write("path/to/output/file", dcmData, dcmVR)
+    julia> dcm_write("path/to/output/file", dcm_data, aux_vr = user_defined_vr)
     ```
-    where `dcmVR` is a dictionary which maps the hex tag to the VR.
+    where `user_defined_vr` is a dictionary which maps the hex tag to the VR.
 
-- A dictionary of VRs can be obtained by passing `true` as a 2nd argument to `dcm_parse()`, e.g.:
+- A dictionary of VRs can be obtained by passing `return_vr = true` as an argument to `dcm_parse()`, e.g.:
     ```
-    julia> (dcmData, dcmVR) = dcm_parse("path/to/dicom/file", true)
+    julia> (dcm_data, dcm_vr) = dcm_parse("path/to/dicom/file", return_vr = true)
     ```
-    and `dcmVR` will contain a dictionary of VRs for all of the elements in `dcmData`
-
+    and `dcm_vr` will contain a dictionary of VRs for the elements in `dcm_data`

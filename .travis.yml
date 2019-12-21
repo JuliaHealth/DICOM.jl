@@ -1,12 +1,17 @@
 language: julia
 os:
-    - linux
-    - osx
+  - linux
+  - osx
+  - windows
 julia:
-    - 0.7
-    - 1.0
-    - nightly
+  - 1.0
+  - 1.3
+  - nightly
+matrix:
+  allow_failures:
+    - julia: nightly
+  fast_finish: true
 notifications:
-    email: false
+  email: false
 after_success:
-    - julia -e 'using Pkg; import DICOM; cd(joinpath(dirname(pathof(DICOM)),"../")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
+  - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'

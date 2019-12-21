@@ -1,9 +1,9 @@
 name = "DICOM"
 uuid = "a26e6606-dd52-5f6a-a97f-4f611373d757"
-version = "0.3.2"
+version = "0.6.1"
 
 [compat]
-julia = "≥ 0.7.0"
+julia = "0.7, 1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
