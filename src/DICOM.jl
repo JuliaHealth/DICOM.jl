@@ -462,7 +462,7 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
         data = permutedims(data, perm)
     else
        # start with Basic Offset Table Item
-        data = Array{Any,1}(element(st, false)[2])
+        data = Array{Any,1}(read_element(st, false)[2])
         while true
             grp = read_group_tag(st, endian)
             elt = read_element_tag(st, endian)
@@ -497,7 +497,7 @@ function determine_dtype(dcm)
         bit_type = Int(f)
     else
         f = get(dcm, (0x0028, 0x0101), nothing)
-        bit_type = f !== nothing ? Int(f) : vr == "OB" ? 8 : 16
+        bit_type = Int(f)
     end
     if bit_type == 8
         dtype = is_signed ? Int8 : UInt8
