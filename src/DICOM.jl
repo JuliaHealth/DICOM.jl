@@ -461,8 +461,9 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
         end
         data = permutedims(data, perm)
     else
-       # start with Basic Offset Table Item
-        data = Array{Any,1}(read_element(st, false)[2])
+        # start with Basic Offset Table Item
+        is_explicit, endian = determine_explicitness_and_endianness(dcm)
+        data = Array{Any,1}(read_element(st, (is_explicit, endian, Dict()))[2])
         while true
             grp = read_group_tag(st, endian)
             elt = read_element_tag(st, endian)
