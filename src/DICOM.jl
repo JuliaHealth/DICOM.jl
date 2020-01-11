@@ -410,7 +410,7 @@ end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
 function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
-    dtype = determine_dtype(dcm)
+    dtype = determine_dtype(dcm; vr = vr)
     yr = 1
     zr = 1
    # (0028,0010) defines number of rows
@@ -482,7 +482,7 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
     return order.(data, endian)
 end
 
-function determine_dtype(dcm)
+function determine_dtype(dcm; vr = "")
     # (0x0028,0x0103) defines Pixel Representation
     is_signed = false
     f = get(dcm, (0x0028, 0x0103), nothing)
