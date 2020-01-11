@@ -108,8 +108,8 @@ function rescale!(dcm::Dict{Tuple{UInt16,UInt16},Any}, direction = :forward)
         return dcm
     end
     if direction == :forward
-        dcm[tag"Pixel Data"] =
-            @. dcm[tag"Pixel Data"] * dcm[tag"Rescale Slope"] + dcm[tag"Rescale Intercept"]
+        dcm[tag"Pixel Data"] = @. dcm[tag"Pixel Data"] * dcm[tag"Rescale Slope"] +
+                                  dcm[tag"Rescale Intercept"]
     else
         pixel_data = dcm[tag"Pixel Data"]
         @. pixel_data -= dcm[tag"Rescale Intercept"]
@@ -246,46 +246,46 @@ function read_element(st::IO, props, dcm = empty_dcm_dict)
     end
 
     data = vr == "ST" || vr == "LT" || vr == "UT" || vr == "AS" ?
-        String(read!(st, Array{UInt8}(undef, sz))) :
+           String(read!(st, Array{UInt8}(undef, sz))) :
 
-        sz == 0 || vr == "XX" ? Any[] :
+           sz == 0 || vr == "XX" ? Any[] :
 
-        vr == "SQ" ? sequence_parse(st, sz, props) :
+           vr == "SQ" ? sequence_parse(st, sz, props) :
 
-        gelt == (0x7FE0, 0x0010) ? pixeldata_parse(st, sz, vr, props, dcm) :
+           gelt == (0x7FE0, 0x0010) ? pixeldata_parse(st, sz, vr, props, dcm) :
 
-        sz == 0xffffffff ? undefined_length(st, vr) :
+           sz == 0xffffffff ? undefined_length(st, vr) :
 
-        vr == "FL" ? numeric_parse(st, Float32, sz, endian) :
-        vr == "FD" ? numeric_parse(st, Float64, sz, endian) :
-        vr == "SL" ? numeric_parse(st, Int32, sz, endian) :
-        vr == "SS" ? numeric_parse(st, Int16, sz, endian) :
-        vr == "UL" ? numeric_parse(st, UInt32, sz, endian) :
-        vr == "US" ? numeric_parse(st, UInt16, sz, endian) :
+           vr == "FL" ? numeric_parse(st, Float32, sz, endian) :
+           vr == "FD" ? numeric_parse(st, Float64, sz, endian) :
+           vr == "SL" ? numeric_parse(st, Int32, sz, endian) :
+           vr == "SS" ? numeric_parse(st, Int16, sz, endian) :
+           vr == "UL" ? numeric_parse(st, UInt32, sz, endian) :
+           vr == "US" ? numeric_parse(st, UInt16, sz, endian) :
 
-        vr == "OB" ? order(read!(st, Array{UInt8}(undef, sz)), endian) :
-        vr == "OF" ? order(read!(st, Array{Float32}(undef, div(sz, 4))), endian) :
-        vr == "OW" ? order(read!(st, Array{UInt16}(undef, div(sz, 2))), endian) :
+           vr == "OB" ? order(read!(st, Array{UInt8}(undef, sz)), endian) :
+           vr == "OF" ? order(read!(st, Array{Float32}(undef, div(sz, 4))), endian) :
+           vr == "OW" ? order(read!(st, Array{UInt16}(undef, div(sz, 2))), endian) :
 
-        vr == "AT" ?
-        [order(read!(st, Array{UInt16}(undef, 2)), endian) for n = 1:div(sz, 4)] :
+           vr == "AT" ?
+           [order(read!(st, Array{UInt16}(undef, 2)), endian) for n = 1:div(sz, 4)] :
 
-        vr == "DS" ?
-        map(x -> x == "" ? 0.0 : parse(Float64, x), string_parse(st, sz, 16, false)) :
-        vr == "IS" ?
-        map(x -> x == "" ? 0 : parse(Int, x), string_parse(st, sz, 12, false)) :
+           vr == "DS" ?
+           map(x -> x == "" ? 0.0 : parse(Float64, x), string_parse(st, sz, 16, false)) :
+           vr == "IS" ?
+           map(x -> x == "" ? 0 : parse(Int, x), string_parse(st, sz, 12, false)) :
 
-        vr == "AE" ? string_parse(st, sz, 16, false) :
-        vr == "CS" ? string_parse(st, sz, 16, false) :
-        vr == "SH" ? string_parse(st, sz, 16, false) :
-        vr == "LO" ? string_parse(st, sz, 64, false) :
-        vr == "UI" ? string_parse(st, sz, 64, false) :
-        vr == "PN" ? string_parse(st, sz, 64, true) :
+           vr == "AE" ? string_parse(st, sz, 16, false) :
+           vr == "CS" ? string_parse(st, sz, 16, false) :
+           vr == "SH" ? string_parse(st, sz, 16, false) :
+           vr == "LO" ? string_parse(st, sz, 64, false) :
+           vr == "UI" ? string_parse(st, sz, 64, false) :
+           vr == "PN" ? string_parse(st, sz, 64, true) :
 
-        vr == "DA" ? string_parse(st, sz, 10, true) :
-        vr == "DT" ? string_parse(st, sz, 26, false) :
-        vr == "TM" ? string_parse(st, sz, 16, false) :
-        order(read!(st, Array{UInt8}(undef, sz)), endian)
+           vr == "DA" ? string_parse(st, sz, 10, true) :
+           vr == "DT" ? string_parse(st, sz, 26, false) :
+           vr == "TM" ? string_parse(st, sz, 16, false) :
+           order(read!(st, Array{UInt8}(undef, sz)), endian)
 
     if isodd(sz) && sz != 0xffffffff
         skip(st, 1)
@@ -589,17 +589,17 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
     end
 
     data = isempty(data) ? UInt8[] :
-        vr in ("OB", "OF", "OW", "ST", "LT", "UT") ? data :
-        vr in ("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM") ?
-        string_write(data, 0) :
-        vr == "FL" ? convert(Array{Float32,1}, data) :
-        vr == "FD" ? convert(Array{Float64,1}, data) :
-        vr == "SL" ? convert(Array{Int32,1}, data) :
-        vr == "SS" ? convert(Array{Int16,1}, data) :
-        vr == "UL" ? convert(Array{UInt32,1}, data) :
-        vr == "US" ? convert(Array{UInt16,1}, data) :
-        vr == "AT" ? [data...] :
-        vr in ("DS", "IS") ? string_write(map(string, data), 0) : data
+           vr in ("OB", "OF", "OW", "ST", "LT", "UT") ? data :
+           vr in ("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM") ?
+           string_write(data, 0) :
+           vr == "FL" ? convert(Array{Float32,1}, data) :
+           vr == "FD" ? convert(Array{Float64,1}, data) :
+           vr == "SL" ? convert(Array{Int32,1}, data) :
+           vr == "SS" ? convert(Array{Int16,1}, data) :
+           vr == "UL" ? convert(Array{UInt32,1}, data) :
+           vr == "US" ? convert(Array{UInt16,1}, data) :
+           vr == "AT" ? [data...] :
+           vr in ("DS", "IS") ? string_write(map(string, data), 0) : data
 
     if !is_explicit && gelt[1] > 0x0002
         vr = empty_vr
@@ -675,8 +675,8 @@ function pixeldata_write(st, d, evr)
     # end
     nt = eltype(d)
     vr = nt === UInt8 || nt === Int8 ? "OB" :
-        nt === UInt16 || nt === Int16 ? "OW" :
-        nt === Float32 ? "OF" : error("dicom: unsupported pixel format")
+         nt === UInt16 || nt === Int16 ? "OW" :
+         nt === Float32 ? "OF" : error("dicom: unsupported pixel format")
     # Permute because Julia is column-major while DICOM is row-major
     # !warn! This part assumes that Planar Configuration (tag: 0x0028, 0x0006) is not 0
     numdims = ndims(d)
