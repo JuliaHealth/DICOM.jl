@@ -414,27 +414,27 @@ function pixeldata_parse(st::IO, sz, vr::String, props, dcm)
     dtype = determine_dtype(dcm; vr = vr)
     yr = 1
     zr = 1
-   # (0028,0010) defines number of rows
+    # (0028,0010) defines number of rows
     f = get(dcm, (0x0028, 0x0010), nothing)
     if f !== nothing
         yr = Int(f)
     end
-   # (0028,0011) defines number of columns
+    # (0028,0011) defines number of columns
     f = get(dcm, (0x0028, 0x0011), nothing)
     if f !== nothing
         xr = Int(f)
     end
-   # (0028,0012) defines number of planes
+    # (0028,0012) defines number of planes
     f = get(dcm, (0x0028, 0x0012), nothing)
     if f !== nothing
         zr = Int(f)
     end
-   # (0028,0008) defines number of frames
+    # (0028,0008) defines number of frames
     f = get(dcm, (0x0028, 0x0008), nothing)
     if f !== nothing
         zr *= Int(f)
     end
-   # (0x0028, 0x0002) defines number of samples per pixel
+    # (0x0028, 0x0002) defines number of samples per pixel
     f = get(dcm, (0x0028, 0x0002), nothing)
     if f !== nothing
         samples_per_pixel = Int(f)
@@ -451,7 +451,7 @@ function pixeldata_parse(st::IO, sz, vr::String, props, dcm)
         data_dims = data_dims[data_dims.>1]
         data = Array{dtype}(undef, data_dims...)
         read!(st, data)
-       # Permute because Julia is column-major while DICOM is row-major
+        # Permute because Julia is column-major while DICOM is row-major
         numdims = ndims(data)
         if numdims == 2
             perm = (2, 1)
@@ -462,7 +462,7 @@ function pixeldata_parse(st::IO, sz, vr::String, props, dcm)
         end
         data = permutedims(data, perm)
     else
-       # start with Basic Offset Table Item
+        # start with Basic Offset Table Item
         data = Array{Any,1}(read_element(st, (false, endian, aux_vr))[2])
         while true
             grp = read_group_tag(st, endian)
