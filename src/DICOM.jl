@@ -399,7 +399,7 @@ function sequence_item(st::IO, sz, props)
     item = Dict{Tuple{UInt16,UInt16},Any}()
     endpos = position(st) + sz
     while position(st) < endpos
-        (gelt, data, vr) = read_element(st, props)
+        (gelt, data, vr) = read_element(st, props, item)
         if isequal(gelt, (0xFFFE, 0xE00D))
             break
         end
@@ -410,7 +410,7 @@ end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
 function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
-    dtype = determine_dtype(dcm)
+    dtype = determine_dtype(dcm, vr)
     yr = 1
     zr = 1
    # (0028,0010) defines number of rows
@@ -483,7 +483,7 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
     return order.(data, endian)
 end
 
-function determine_dtype(dcm)
+function determine_dtype(dcm, vr = "OB")
     # (0x0028,0x0103) defines Pixel Representation
     is_signed = false
     f = get(dcm, (0x0028, 0x0103), nothing)
@@ -498,7 +498,7 @@ function determine_dtype(dcm)
         bit_type = Int(f)
     else
         f = get(dcm, (0x0028, 0x0101), nothing)
-        bit_type = Int(f)
+        bit_type = f !== nothing ? Int(f) : vr == "OB" ? 8 : 16
     end
     if bit_type == 8
         dtype = is_signed ? Int8 : UInt8
