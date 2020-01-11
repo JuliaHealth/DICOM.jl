@@ -252,7 +252,7 @@ function read_element(st::IO, props, dcm = empty_dcm_dict)
 
         vr == "SQ" ? sequence_parse(st, sz, props) :
 
-        gelt == (0x7FE0, 0x0010) ? pixeldata_parse(st, sz, vr, dcm, endian) :
+        gelt == (0x7FE0, 0x0010) ? pixeldata_parse(st, sz, vr, props, dcm) :
 
         sz == 0xffffffff ? undefined_length(st, vr) :
 
@@ -409,7 +409,8 @@ function sequence_item(st::IO, sz, props)
 end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
-function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
+function pixeldata_parse(st::IO, sz, vr::String, props, dcm)
+    (is_explicit, endian, aux_vr) = props
     dtype = determine_dtype(dcm; vr = vr)
     yr = 1
     zr = 1
@@ -462,7 +463,7 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
         data = permutedims(data, perm)
     else
        # start with Basic Offset Table Item
-        data = Array{Any,1}(element(st, false)[2])
+        data = Array{Any,1}(read_element(st, (false, endian, aux_vr))[2])
         while true
             grp = read_group_tag(st, endian)
             elt = read_element_tag(st, endian)
