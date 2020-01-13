@@ -399,7 +399,7 @@ function sequence_item(st::IO, sz, props)
     item = Dict{Tuple{UInt16,UInt16},Any}()
     endpos = position(st) + sz
     while position(st) < endpos
-        (gelt, data, vr) = read_element(st, props)
+        (gelt, data, vr) = read_element(st, props, item)
         if isequal(gelt, (0xFFFE, 0xE00D))
             break
         end
@@ -410,7 +410,7 @@ end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
 function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
-    dtype = determine_dtype(dcm)
+    dtype = determine_dtype(dcm, vr)
     yr = 1
     zr = 1
    # (0028,0010) defines number of rows
@@ -461,8 +461,9 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
         end
         data = permutedims(data, perm)
     else
-       # start with Basic Offset Table Item
-        data = Array{Any,1}(element(st, false)[2])
+        # start with Basic Offset Table Item
+        is_explicit, endian = determine_explicitness_and_endianness(dcm)
+        data = Array{Any,1}(read_element(st, (is_explicit, endian, Dict()))[2])
         while true
             grp = read_group_tag(st, endian)
             elt = read_element_tag(st, endian)
@@ -482,7 +483,7 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
     return order.(data, endian)
 end
 
-function determine_dtype(dcm)
+function determine_dtype(dcm, vr = "OB")
     # (0x0028,0x0103) defines Pixel Representation
     is_signed = false
     f = get(dcm, (0x0028, 0x0103), nothing)
@@ -652,6 +653,7 @@ function dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function, vr::Str
     end
 end
 
+sequence_write(st::IO, items::Array{Any,1}, evr::Bool) = sequence_write(st,convert(Array{Dict{Tuple{UInt16,UInt16},Any},1},items),evr)
 function sequence_write(st::IO, items::Array{Dict{Tuple{UInt16,UInt16},Any},1}, evr)
     for subitem in items
         if length(subitem) > 0
