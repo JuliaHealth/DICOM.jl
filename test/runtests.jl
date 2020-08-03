@@ -140,9 +140,9 @@ end
     )
     dcmCTa = dcm_parse(fileCT, preamble = false, aux_vr = dVR_CTa)
     # 2b. Read with a master VR which skips elements
-    # Here we skip any element where lookup_vr() fails
-    # And we also force (0x0018,0x1170) to be read as float instead of integer
-    dVR_CTb = Dict((0x0000, 0x0000) => "", (0x0018, 0x1170) => "DS")
+    # Here we skip the element (0x0028, 0x0040)
+    # and we also force (0x0018,0x1170) to be read as float instead of integer
+    dVR_CTb = Dict((0x0028, 0x0040) => "", (0x0018, 0x1170) => "DS")
     dcmCTb = dcm_parse(fileCT, preamble = false, aux_vr = dVR_CTb)
     @test dcmCTa[(0x0008, 0x0060)] == "CT"
     @test dcmCTb[(0x0008, 0x0060)] == "CT"
