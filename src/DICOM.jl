@@ -129,11 +129,8 @@ end
 always_implicit(grp, elt) =
     (grp == 0xFFFE && (elt == 0xE0DD || elt == 0xE000 || elt == 0xE00D))
 
-function find_dicom_files(dir; join=true)
+function find_dicom_files(dir)
     files = readdir(dir)
-    if join
-        @. files = joinpath(dir, files)
-    end
     dicom_files = filter(file -> isdicom(file), files)
     return dicom_files
 end
