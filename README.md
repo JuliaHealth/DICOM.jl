@@ -30,6 +30,11 @@ julia> dcm_data = dcm_parse("path/to/dicom/file")
 The data in `dcm_data` is structured as a dictionary, and individual DICOM elements can be accessed by their hex tag.
 For example, the hex tag of "Pixel Data" is `7FE0,0010`, and it can be accessed in Julia by `dcm_data[(0x7FE0,0x0010)]` or by `dcm_data[tag"Pixel Data"]`.
 
+Multiple DICOM files in a folder can be read by
+```
+julia> dcm_data_array = dcmdir_parse("path/to/dicom/folder")
+```
+
 **Writing Data**
 
 Data can be written to a DICOM file by

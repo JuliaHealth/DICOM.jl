@@ -1,6 +1,6 @@
 module DICOM
 
-export dcm_parse, dcm_write, lookup, lookup_vr, rescale!
+export dcm_parse, dcmdir_parse, dcm_write, lookup, lookup_vr, rescale!
 export @tag_str
 
 """
@@ -128,6 +128,21 @@ end
 
 always_implicit(grp, elt) =
     (grp == 0xFFFE && (elt == 0xE0DD || elt == 0xE000 || elt == 0xE00D))
+
+function find_dicom_files(dir)
+    files = joinpath.(dir, readdir(dir))
+    dicom_files = filter(file -> isdicom(file), files)
+    return dicom_files
+end
+
+isdicom(file) = last(splitext(file)) == ".dcm"
+
+function dcmdir_parse(dir; kwargs...)
+    dicom_files = find_dicom_files(dir)
+    unsorted_dicoms = [dcm_parse(file; kwargs...) for file in dicom_files]
+    dicoms = sort!(unsorted_dicoms, by = dicom -> dicom[tag"Instance Number"])
+    return dicoms
+end
 
 """
    dcm_parse(fn::AbstractString)

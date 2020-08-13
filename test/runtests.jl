@@ -37,6 +37,14 @@ function download_dicom(filename; folder = data_folder)
     return filepath
 end
 
+function delete_file(filename; folder = data_folder)
+    filepath = joinpath(folder, filename)
+    if isfile(filepath)
+        rm(filepath)
+    end
+    return nothing
+end
+
 @testset "Reading DICOM" begin
     fileMR = download_dicom("MR_Implicit_Little.dcm")
     fileCT = download_dicom("CT_Explicit_Little.dcm")
@@ -178,6 +186,15 @@ end
     fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
     dcmDX = dcm_parse(fileDX)
     @test size(dcmDX[(0x7fe0, 0x0010)]) == (1590, 2593, 3)
+end
+
+@testset "Parse entire folder" begin
+    # Files with missing preamble cause error, so delete them first
+    problematic_files = ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
+    delete_file.(problematic_files)
+    dcms = dcmdir_parse(data_folder)
+    @test issorted([dcm[tag"Instance Number"] for dcm in dcms])
+    @test length(dcms) == length(readdir(data_folder))
 end
 
 @testset "Test tag macro" begin
