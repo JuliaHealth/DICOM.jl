@@ -3,6 +3,8 @@ module DICOM
 export dcm_parse, dcmdir_parse, dcm_write, lookup, lookup_vr, rescale!
 export @tag_str
 
+include("DICOMData.jl")
+
 """
     @tag_str(s)
 
@@ -100,12 +102,8 @@ function lookup_vr(gelt::Tuple{UInt16,UInt16})
     return (r[2])
 end
 
-function lookup(d::Dict{Tuple{UInt16,UInt16},Any}, fieldnameString::String)
-    fieldname = Symbol(filter(x -> !isspace(x), fieldnameString))
-    return (get(d, fieldname_dict[fieldname], nothing))
-end
 
-function rescale!(dcm::Dict{Tuple{UInt16,UInt16},Any}, direction = :forward)
+function rescale!(dcm::DICOMData, direction = :forward)
     if !haskey(dcm, tag"Rescale Intercept") || !haskey(dcm, tag"Rescale Slope")
         return dcm
     end
@@ -177,6 +175,7 @@ function dcm_parse(
     is_explicit, endian = determine_explicitness_and_endianness(dcm)
     file_properties = (is_explicit = is_explicit, endian = endian, aux_vr = aux_vr)
     (dcm, vr) = read_body(st, dcm, file_properties; max_group = max_group)
+    dcm = DICOMData(dcm)
     if return_vr
         return dcm, vr
     else
@@ -537,16 +536,16 @@ function undefined_length(st, vr)
 end
 
 
-function dcm_write(fn::String, d::Dict{Tuple{UInt16,UInt16},Any}; kwargs...)
+function dcm_write(fn::String, dcm::DICOMData; kwargs...)
     st = open(fn, "w+")
-    dcm_write(st, d; kwargs...)
+    dcm_write(st, dcm; kwargs...)
     close(st)
     return fn
 end
 
 function dcm_write(
     st::IO,
-    dcm::Dict{Tuple{UInt16,UInt16},Any};
+    dcm::DICOMData;
     preamble = true,
     aux_vr = Dict{Tuple{UInt16,UInt16},String}(),
 )

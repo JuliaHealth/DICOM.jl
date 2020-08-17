@@ -188,6 +188,28 @@ end
     @test size(dcmDX[(0x7fe0, 0x0010)]) == (1590, 2593, 3)
 end
 
+@testset "DICOMData API" begin
+    dcmFile = download_dicom("MR_Implicit_Little.dcm")
+    dcm = dcm_parse(dcmFile)
+    @test dcm.PatientName === 
+        dcm[:PatientName] === 
+        dcm["PatientName"] === 
+        dcm[(0x0010,0x0010)] ===
+        "Anonymized"
+    dcm.PatientName = "Tom"
+    @test dcm.PatientName == "Tom"
+    dcm[:PatientName] = "Dick"
+    @test dcm.PatientName == "Dick"
+    dcm["PatientName"] = "Harry"
+    @test dcm.PatientName == "Harry"
+    dcm[(0x0010,0x0010)] = "Anonymized"
+    @test dcm.PatientName === 
+        dcm[:PatientName] === 
+        dcm["PatientName"] === 
+        dcm[(0x0010,0x0010)] ===
+        "Anonymized"
+end
+
 @testset "Parse entire folder" begin
     # Files with missing preamble cause error, so delete them first
     problematic_files =
