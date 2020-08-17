@@ -191,7 +191,7 @@ end
 @testset "DICOMData API" begin
     dcmFile = download_dicom("MR_Implicit_Little.dcm")
     dcm = dcm_parse(dcmFile)
-    @test keys(dcm) == 87
+    @test length(keys(dcm)) == 87
     @test haskey(dcm, "PatientName")
     @test haskey(dcm, :PatientName)
     @test haskey(dcm, (0x0010, 0x0010))
