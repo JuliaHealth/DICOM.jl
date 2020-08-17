@@ -190,7 +190,8 @@ end
 
 @testset "Parse entire folder" begin
     # Files with missing preamble cause error, so delete them first
-    problematic_files = ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
+    problematic_files =
+        ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
     delete_file.(problematic_files)
     dcms = dcmdir_parse(data_folder)
     @test issorted([dcm[tag"Instance Number"] for dcm in dcms])
