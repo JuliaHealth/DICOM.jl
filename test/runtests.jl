@@ -191,23 +191,27 @@ end
 @testset "DICOMData API" begin
     dcmFile = download_dicom("MR_Implicit_Little.dcm")
     dcm = dcm_parse(dcmFile)
-    @test dcm.PatientName === 
-        dcm[:PatientName] === 
-        dcm["PatientName"] === 
-        dcm[(0x0010,0x0010)] ===
-        "Anonymized"
+    @test keys(dcm) == 87
+    @test haskey(dcm, "PatientName")
+    @test haskey(dcm, :PatientName)
+    @test haskey(dcm, (0x0010, 0x0010))
+    @test dcm.PatientName ===
+          dcm[:PatientName] ===
+          dcm["PatientName"] ===
+          dcm[(0x0010, 0x0010)] ===
+          "Anonymized"
     dcm.PatientName = "Tom"
     @test dcm.PatientName == "Tom"
     dcm[:PatientName] = "Dick"
     @test dcm.PatientName == "Dick"
     dcm["PatientName"] = "Harry"
     @test dcm.PatientName == "Harry"
-    dcm[(0x0010,0x0010)] = "Anonymized"
-    @test dcm.PatientName === 
-        dcm[:PatientName] === 
-        dcm["PatientName"] === 
-        dcm[(0x0010,0x0010)] ===
-        "Anonymized"
+    dcm[(0x0010, 0x0010)] = "Anonymized"
+    @test dcm.PatientName ===
+          dcm[:PatientName] ===
+          dcm["PatientName"] ===
+          dcm[(0x0010, 0x0010)] ===
+          "Anonymized"
 end
 
 @testset "Parse entire folder" begin
