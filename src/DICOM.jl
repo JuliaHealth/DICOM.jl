@@ -15,7 +15,8 @@ julia> tag"ROI Mean"
 ```
 """
 macro tag_str(s)
-    DICOM.fieldname_dict[s]
+    key = Symbol(filter(x -> !isspace(x), s))
+    DICOM.fieldname_dict[key]
 end
 
 
@@ -100,7 +101,8 @@ function lookup_vr(gelt::Tuple{UInt16,UInt16})
 end
 
 function lookup(d::Dict{Tuple{UInt16,UInt16},Any}, fieldnameString::String)
-    return (get(d, fieldname_dict[fieldnameString], nothing))
+    fieldname = Symbol(filter(x -> !isspace(x), fieldnameString))
+    return (get(d, fieldname_dict[fieldname], nothing))
 end
 
 function rescale!(dcm::Dict{Tuple{UInt16,UInt16},Any}, direction = :forward)

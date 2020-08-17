@@ -198,12 +198,12 @@ end
 end
 
 @testset "Test tag macro" begin
-    @test tag"Modality" === (0x0008, 0x0060) === DICOM.fieldname_dict["Modality"]
+    @test tag"Modality" === (0x0008, 0x0060) === DICOM.fieldname_dict[:Modality]
     @test tag"Shutter Overlay Group" ===
           (0x0018, 0x1623) ===
-          DICOM.fieldname_dict["Shutter Overlay Group"]
+          DICOM.fieldname_dict[:ShutterOverlayGroup]
     @test tag"Histogram Last Bin Value" === (0x0060, 0x3006)
-    DICOM.fieldname_dict["Histogram Last Bin Value"]
+    DICOM.fieldname_dict[:HistogramLastBinValue]
 
     # test that compile time error is thrown if tag does not exist
     @test macroexpand(Main, :(tag"Modality")) === (0x0008, 0x0060)
