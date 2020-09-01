@@ -188,9 +188,36 @@ end
     @test size(dcmDX[(0x7fe0, 0x0010)]) == (1590, 2593, 3)
 end
 
+@testset "DICOMData API" begin
+    dcmFile = download_dicom("MR_Implicit_Little.dcm")
+    dcm = dcm_parse(dcmFile)
+    @test length(keys(dcm)) == 87
+    @test haskey(dcm, "PatientName")
+    @test haskey(dcm, :PatientName)
+    @test haskey(dcm, (0x0010, 0x0010))
+    @test dcm.PatientName ===
+          dcm[:PatientName] ===
+          dcm["PatientName"] ===
+          dcm[(0x0010, 0x0010)] ===
+          "Anonymized"
+    dcm.PatientName = "Tom"
+    @test dcm.PatientName == "Tom"
+    dcm[:PatientName] = "Dick"
+    @test dcm.PatientName == "Dick"
+    dcm["PatientName"] = "Harry"
+    @test dcm.PatientName == "Harry"
+    dcm[(0x0010, 0x0010)] = "Anonymized"
+    @test dcm.PatientName ===
+          dcm[:PatientName] ===
+          dcm["PatientName"] ===
+          dcm[(0x0010, 0x0010)] ===
+          "Anonymized"
+end
+
 @testset "Parse entire folder" begin
     # Files with missing preamble cause error, so delete them first
-    problematic_files = ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
+    problematic_files =
+        ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
     delete_file.(problematic_files)
     dcms = dcmdir_parse(data_folder)
     @test issorted([dcm[tag"Instance Number"] for dcm in dcms])
@@ -198,12 +225,12 @@ end
 end
 
 @testset "Test tag macro" begin
-    @test tag"Modality" === (0x0008, 0x0060) === DICOM.fieldname_dict["Modality"]
+    @test tag"Modality" === (0x0008, 0x0060) === DICOM.fieldname_dict[:Modality]
     @test tag"Shutter Overlay Group" ===
           (0x0018, 0x1623) ===
-          DICOM.fieldname_dict["Shutter Overlay Group"]
+          DICOM.fieldname_dict[:ShutterOverlayGroup]
     @test tag"Histogram Last Bin Value" === (0x0060, 0x3006)
-    DICOM.fieldname_dict["Histogram Last Bin Value"]
+    DICOM.fieldname_dict[:HistogramLastBinValue]
 
     # test that compile time error is thrown if tag does not exist
     @test macroexpand(Main, :(tag"Modality")) === (0x0008, 0x0060)

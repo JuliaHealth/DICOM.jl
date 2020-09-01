@@ -3,6 +3,8 @@ module DICOM
 export dcm_parse, dcmdir_parse, dcm_write, lookup, lookup_vr, rescale!
 export @tag_str
 
+include("DICOMData.jl")
+
 """
     @tag_str(s)
 
@@ -15,7 +17,8 @@ julia> tag"ROI Mean"
 ```
 """
 macro tag_str(s)
-    DICOM.fieldname_dict[s]
+    key = Symbol(filter(x -> !isspace(x), s))
+    DICOM.fieldname_dict[key]
 end
 
 
@@ -99,11 +102,8 @@ function lookup_vr(gelt::Tuple{UInt16,UInt16})
     return (r[2])
 end
 
-function lookup(d::Dict{Tuple{UInt16,UInt16},Any}, fieldnameString::String)
-    return (get(d, fieldname_dict[fieldnameString], nothing))
-end
 
-function rescale!(dcm::Dict{Tuple{UInt16,UInt16},Any}, direction = :forward)
+function rescale!(dcm::DICOMData, direction = :forward)
     if !haskey(dcm, tag"Rescale Intercept") || !haskey(dcm, tag"Rescale Slope")
         return dcm
     end
@@ -175,6 +175,7 @@ function dcm_parse(
     is_explicit, endian = determine_explicitness_and_endianness(dcm)
     file_properties = (is_explicit = is_explicit, endian = endian, aux_vr = aux_vr)
     (dcm, vr) = read_body(st, dcm, file_properties; max_group = max_group)
+    dcm = DICOMData(dcm)
     if return_vr
         return dcm, vr
     else
@@ -183,9 +184,9 @@ function dcm_parse(
 end
 
 function check_preamble(st)
-   # First 128 can be skipped
+    # First 128 can be skipped
     skip(st, 128)
-   # "DICM" identifier must be after the first 128 bytes
+    # "DICM" identifier must be after the first 128 bytes
     sig = String(read!(st, Array{UInt8}(undef, 4)))
     if sig != "DICM"
         error("dicom: invalid file header")
@@ -213,7 +214,7 @@ function read_meta(st::IO)
 end
 
 function determine_explicitness_and_endianness(dcm)
-   # Default is implicit_vr & little-endian
+    # Default is implicit_vr & little-endian
     if !haskey(dcm, (0x0002, 0x0010))
         return (false, :little)
     end
@@ -253,7 +254,7 @@ function read_element(st::IO, props, dcm = empty_dcm_dict)
     gelt = (grp, elt)
     vr, lentype = determine_vr_and_lentype(st, gelt, is_explicit, aux_vr)
     sz = read_element_size(st, lentype, endian)
-   # Empty VR can be supplied in aux_vr to skip an element
+    # Empty VR can be supplied in aux_vr to skip an element
     if isempty(vr)
         sz = isodd(sz) ? sz + 1 : sz
         skip(st, sz)
@@ -262,41 +263,31 @@ function read_element(st::IO, props, dcm = empty_dcm_dict)
 
     data = vr == "ST" || vr == "LT" || vr == "UT" || vr == "AS" ?
         String(read!(st, Array{UInt8}(undef, sz))) :
-
         sz == 0 || vr == "XX" ? Any[] :
-
         vr == "SQ" ? sequence_parse(st, sz, props) :
-
         gelt == (0x7FE0, 0x0010) ? pixeldata_parse(st, sz, vr, dcm, endian) :
-
         sz == 0xffffffff ? undefined_length(st, vr) :
-
         vr == "FL" ? numeric_parse(st, Float32, sz, endian) :
         vr == "FD" ? numeric_parse(st, Float64, sz, endian) :
         vr == "SL" ? numeric_parse(st, Int32, sz, endian) :
         vr == "SS" ? numeric_parse(st, Int16, sz, endian) :
         vr == "UL" ? numeric_parse(st, UInt32, sz, endian) :
         vr == "US" ? numeric_parse(st, UInt16, sz, endian) :
-
         vr == "OB" ? order(read!(st, Array{UInt8}(undef, sz)), endian) :
         vr == "OF" ? order(read!(st, Array{Float32}(undef, div(sz, 4))), endian) :
         vr == "OW" ? order(read!(st, Array{UInt16}(undef, div(sz, 2))), endian) :
-
         vr == "AT" ?
         [order(read!(st, Array{UInt16}(undef, 2)), endian) for n = 1:div(sz, 4)] :
-
         vr == "DS" ?
         map(x -> x == "" ? 0.0 : parse(Float64, x), string_parse(st, sz, 16, false)) :
         vr == "IS" ?
         map(x -> x == "" ? 0 : parse(Int, x), string_parse(st, sz, 12, false)) :
-
         vr == "AE" ? string_parse(st, sz, 16, false) :
         vr == "CS" ? string_parse(st, sz, 16, false) :
         vr == "SH" ? string_parse(st, sz, 16, false) :
         vr == "LO" ? string_parse(st, sz, 64, false) :
         vr == "UI" ? string_parse(st, sz, 64, false) :
         vr == "PN" ? string_parse(st, sz, 64, true) :
-
         vr == "DA" ? string_parse(st, sz, 10, true) :
         vr == "DT" ? string_parse(st, sz, 26, false) :
         vr == "TM" ? string_parse(st, sz, 16, false) :
@@ -306,11 +297,11 @@ function read_element(st::IO, props, dcm = empty_dcm_dict)
         skip(st, 1)
     end
 
-   # For convenience, get rid of array if it is just acting as a container
-   # Exception is "SQ", where array is part of structure
+    # For convenience, get rid of array if it is just acting as a container
+    # Exception is "SQ", where array is part of structure
     if length(data) == 1 && vr != "SQ"
         data = data[1]
-       # Sometimes it is necessary to go one level deeper
+        # Sometimes it is necessary to go one level deeper
         if length(data) == 1
             data = data[1]
         end
@@ -338,10 +329,10 @@ function determine_vr_and_lentype(st, gelt, is_explicit, aux_vr)
         vr = elt == 0x0000 ? "UL" : lookup_vr(gelt)
     end
     if isodd(grp) && grp > 0x0008 && 0x0010 <= elt < +0x00FF
-       # Private creator
+        # Private creator
         vr = "LO"
     elseif isodd(grp) && grp > 0x0008
-       # Assume private
+        # Assume private
         vr = "UN"
     end
     if haskey(aux_vr, gelt)
@@ -428,27 +419,27 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
     dtype = determine_dtype(dcm, vr)
     yr = 1
     zr = 1
-   # (0028,0010) defines number of rows
+    # (0028,0010) defines number of rows
     f = get(dcm, (0x0028, 0x0010), nothing)
     if f !== nothing
         yr = Int(f)
     end
-   # (0028,0011) defines number of columns
+    # (0028,0011) defines number of columns
     f = get(dcm, (0x0028, 0x0011), nothing)
     if f !== nothing
         xr = Int(f)
     end
-   # (0028,0012) defines number of planes
+    # (0028,0012) defines number of planes
     f = get(dcm, (0x0028, 0x0012), nothing)
     if f !== nothing
         zr = Int(f)
     end
-   # (0028,0008) defines number of frames
+    # (0028,0008) defines number of frames
     f = get(dcm, (0x0028, 0x0008), nothing)
     if f !== nothing
         zr *= Int(f)
     end
-   # (0x0028, 0x0002) defines number of samples per pixel
+    # (0x0028, 0x0002) defines number of samples per pixel
     f = get(dcm, (0x0028, 0x0002), nothing)
     if f !== nothing
         samples_per_pixel = Int(f)
@@ -465,7 +456,7 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
         data_dims = data_dims[data_dims.>1]
         data = Array{dtype}(undef, data_dims...)
         read!(st, data)
-       # Permute because Julia is column-major while DICOM is row-major
+        # Permute because Julia is column-major while DICOM is row-major
         numdims = ndims(data)
         if numdims == 2
             perm = (2, 1)
@@ -545,16 +536,16 @@ function undefined_length(st, vr)
 end
 
 
-function dcm_write(fn::String, d::Dict{Tuple{UInt16,UInt16},Any}; kwargs...)
+function dcm_write(fn::String, dcm::DICOMData; kwargs...)
     st = open(fn, "w+")
-    dcm_write(st, d; kwargs...)
+    dcm_write(st, dcm; kwargs...)
     close(st)
     return fn
 end
 
 function dcm_write(
     st::IO,
-    dcm::Dict{Tuple{UInt16,UInt16},Any};
+    dcm::DICOMData;
     preamble = true,
     aux_vr = Dict{Tuple{UInt16,UInt16},String}(),
 )
@@ -580,10 +571,10 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
         if gelt[2] == 0x0000
             vr = "UL"
         elseif isodd(gelt[1]) && gelt[1] > 0x0008 && 0x0010 <= gelt[2] < +0x00FF
-                # Private creator
+            # Private creator
             vr = "LO"
         elseif isodd(gelt[1]) && gelt[1] > 0x0008
-                # Assume private
+            # Assume private
             vr = "UN"
         else
             error("dicom: unknown tag ", gelt)
@@ -668,7 +659,8 @@ function dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function, vr::Str
     end
 end
 
-sequence_write(st::IO, items::Array{Any,1}, evr::Bool) = sequence_write(st,convert(Array{Dict{Tuple{UInt16,UInt16},Any},1},items),evr)
+sequence_write(st::IO, items::Array{Any,1}, evr::Bool) =
+    sequence_write(st, convert(Array{Dict{Tuple{UInt16,UInt16},Any},1}, items), evr)
 function sequence_write(st::IO, items::Array{Dict{Tuple{UInt16,UInt16},Any},1}, evr)
     for subitem in items
         if length(subitem) > 0
