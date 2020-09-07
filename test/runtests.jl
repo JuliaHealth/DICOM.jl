@@ -37,14 +37,6 @@ function download_dicom(filename; folder = data_folder)
     return filepath
 end
 
-function delete_file(filename; folder = data_folder)
-    filepath = joinpath(folder, filename)
-    if isfile(filepath)
-        rm(filepath)
-    end
-    return nothing
-end
-
 @testset "Reading DICOM" begin
     fileMR = download_dicom("MR_Implicit_Little.dcm")
     fileCT = download_dicom("CT_Explicit_Little.dcm")
