@@ -135,7 +135,10 @@ function find_dicom_files(dir)
     return dicom_files
 end
 
-isdicom(file) = last(splitext(file)) == ".dcm"
+function isdicom(file)
+    bytes = read(file, 132)[end-3:end]
+    String(bytes) == "DICM"
+end
 
 function dcmdir_parse(dir; kwargs...)
     dicom_files = find_dicom_files(dir)
