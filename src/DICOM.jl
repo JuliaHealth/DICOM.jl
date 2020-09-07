@@ -136,7 +136,7 @@ function find_dicom_files(dir)
 end
 
 function isdicom(file)
-    bytes = read(f, 132)[end-3:end]
+    bytes = read(file, 132)[end-3:end]
     String(bytes) == "DICM"
 end
 
