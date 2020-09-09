@@ -37,14 +37,6 @@ function download_dicom(filename; folder = data_folder)
     return filepath
 end
 
-function delete_file(filename; folder = data_folder)
-    filepath = joinpath(folder, filename)
-    if isfile(filepath)
-        rm(filepath)
-    end
-    return nothing
-end
-
 @testset "Reading DICOM" begin
     fileMR = download_dicom("MR_Implicit_Little.dcm")
     fileCT = download_dicom("CT_Explicit_Little.dcm")
@@ -215,13 +207,11 @@ end
 end
 
 @testset "Parse entire folder" begin
-    # Files with missing preamble cause error, so delete them first
-    problematic_files =
-        ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
-    delete_file.(problematic_files)
+    # Following files have missing preamble and won't be parsed
+    # ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
     dcms = dcmdir_parse(data_folder)
     @test issorted([dcm[tag"Instance Number"] for dcm in dcms])
-    @test length(dcms) == length(readdir(data_folder))
+    @test length(dcms) == length(readdir(data_folder)) - 2 # -2 because of note above
 end
 
 @testset "Test tag macro" begin
