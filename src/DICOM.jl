@@ -166,7 +166,6 @@ Reads IO st and returns a Dict
 """
 function dcm_parse(
     st::IO;
-    return_vr = false,
     preamble = true,
     max_group = 0xffff,
     aux_vr = Dict{Tuple{UInt16,UInt16},String}(),
@@ -180,7 +179,6 @@ function dcm_parse(
     read_body!(st, dcm; max_group = max_group)
     # dcm = DICOMData(dcm, endian, is_explicit, vr, aux_vr)
     return dcm
-end
 end
 
 function check_preamble(st)
@@ -466,24 +464,20 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm)
         end
         data = permutedims(data, perm)
     else
-        # start with Basic Offset Table Item
-        is_explicit, endian = determine_explicitness_and_endianness(dcm)
-        data = Array{Any,1}(read_element(st, (is_explicit, endian, Dict()))[2])
+        data = []
         while true
             grp = read_group_tag(st, endian)
             elt = read_element_tag(st, endian)
-            xr = read_element_size(st, UInt32, endian)
+            itemlen = read_element_size(st, UInt32, endian)
             if grp == 0xFFFE && elt == 0xE0DD
-                return data
+                break
             end
             if grp != 0xFFFE || elt != 0xE000
-                error("dicom: expected item tag in encapsulated pixel data")
+                error("dicom: expected item tag in sequence")
             end
-            if dtype === UInt16
-                xr = div(xr, 2)
-            end
-            push!(data, read!(st, Array{dtype}(undef, xr)))
+            push!(data, read!(st, Array{UInt8}(undef, itemlen)))
         end
+        return data
     end
     return order.(data, endian)
 end
