@@ -9,6 +9,8 @@ end
 const dicom_samples = Dict(
     "CT_Explicit_Little.dcm" =>
         "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_Explicit_Little.dcm",
+    "CT_JPEG70.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_JPEG70.dcm",
     "CT_Implicit_Little_Headless_Retired.dcm" =>
         "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/CT_Implicit_Little_Headless_Retired.dcm",
     "MG_Explicit_Little.dcm" =>
@@ -184,6 +186,11 @@ end
     fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
     dcmDX = dcm_parse(fileDX)
     @test size(dcmDX[(0x7fe0, 0x0010)]) == (1590, 2593, 3)
+end
+
+@testset "Test Compressed" begin
+    fileCT = download_dicom("CT_JPEG70.dcm")
+    dcm_parse(fileCT)
 end
 
 @testset "DICOMData API" begin
