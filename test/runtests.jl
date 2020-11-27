@@ -45,7 +45,7 @@ end
     dcmMR_partial = dcm_parse(fileMR, max_group = 0x0008)
     dcmMR = dcm_parse(fileMR)
     dcmCT = dcm_parse(fileCT)
-    (dcmMG, vrMG) = dcm_parse(fileMG, return_vr = true)
+    dcmMG = dcm_parse(fileMG)
 
     @test dcmMR_partial[(0x0008, 0x0060)] == "MR"
     @test haskey(dcmMR_partial, (0x7FE0, 0x0010)) == false
@@ -70,7 +70,7 @@ end
 
     dcmMR = dcm_parse(fileMR)
     dcmCT = dcm_parse(fileCT)
-    (dcmMG, vrMG) = dcm_parse(fileMG, return_vr = true)
+    dcmMG = dcm_parse(fileMG)
 
     # Define two output files for each dcm - data will be saved, reloaded, then saved again
     outMR1 = joinpath(data_folder, "outMR1.dcm")
@@ -84,18 +84,18 @@ end
     # Write DICOM files
     dcm_write(outMR1, dcmMR)
     dcm_write(outCT1, dcmCT)
-    dcm_write(outMG1, dcmMG; aux_vr = vrMG)
+    dcm_write(outMG1, dcmMG; aux_vr = dcmMG.vr)
     open(outMG1b, "w") do io
-        dcm_write(io, dcmMG; aux_vr = vrMG)
+        dcm_write(io, dcmMG; aux_vr = dcmMG.vr)
     end
     # Reading DICOM files which were written from previous step
     dcmMR1 = dcm_parse(outMR1)
     dcmCT1 = dcm_parse(outCT1)
-    (dcmMG1, vrMG1) = dcm_parse(outMG1, return_vr = true)
+    dcmMG1 = dcm_parse(outMG1)
     # Write DICOM files which were re-read from previous step
     dcm_write(outMR2, dcmMR1)
     dcm_write(outCT2, dcmCT1)
-    dcm_write(outMG2, dcmMG1; aux_vr = vrMG1)
+    dcm_write(outMG2, dcmMG1; aux_vr = dcmMG1.vr)
 
     # Test consistency of written files after the write-read-write cycle
     @test read(outMR1) == read(outMR2)

@@ -1,5 +1,8 @@
 struct DICOMData
     meta::Dict{Tuple{UInt16,UInt16},Any}
+    endian::Symbol
+    isexplicit::Bool
+    vr::Dict{Tuple{UInt16,UInt16},String}
 end
 
 function Base.getproperty(dcm::DICOMData, sym::Symbol)
