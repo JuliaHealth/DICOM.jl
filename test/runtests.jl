@@ -37,6 +37,12 @@ function download_dicom(filename; folder = data_folder)
     return filepath
 end
 
+@testset "Download Test Data" begin
+    for filename in keys(dicom_samples)
+        download_dicom(filename)
+    end
+end
+
 @testset "Reading DICOM" begin
     fileMR = download_dicom("MR_Implicit_Little.dcm")
     fileCT = download_dicom("CT_Explicit_Little.dcm")
