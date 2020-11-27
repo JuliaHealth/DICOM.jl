@@ -2,7 +2,6 @@
 
 Julia interface for parsing/writing DICOM (Digital Imaging and Communications in Medicine) files
 
-[![Build Status](https://travis-ci.com/JuliaHealth/DICOM.jl.svg?branch=master)](https://travis-ci.com/github/JuliaHealth/DICOM.jl/branches)
 [![Build Status](https://github.com/JuliaHealth/DICOM.jl/workflows/CI/badge.svg)](https://github.com/JuliaHealth/DICOM.jl/actions)
 [![Coverage](https://codecov.io/gh/JuliaHealth/DICOM.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaHealth/DICOM.jl)
 
