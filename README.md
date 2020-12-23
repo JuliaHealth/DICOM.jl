@@ -55,6 +55,7 @@ DICOM files use either explicit or implicit value representation (VR). For impli
     dcm_data = dcm_parse("path/to/dicom/file", aux_vr = my_vrs)
     ```
     Now `dcm_data[(0x0020,0x0013)]` will return a float instead of an integer.
+    + The parsed VRs are stored in `dcm_data.vr`
 
 - It is possible to skip an element by setting its VR to `""`.
     For example, we can skip reading the Instance Number by
@@ -75,9 +76,3 @@ DICOM files use either explicit or implicit value representation (VR). For impli
     julia> dcm_write("path/to/output/file", dcm_data, aux_vr = user_defined_vr)
     ```
     where `user_defined_vr` is a dictionary which maps the hex tag to the VR.
-
-- A dictionary of VRs can be obtained by passing `return_vr = true` as an argument to `dcm_parse()`, e.g.:
-    ```
-    julia> (dcm_data, dcm_vr) = dcm_parse("path/to/dicom/file", return_vr = true)
-    ```
-    and `dcm_vr` will contain a dictionary of VRs for the elements in `dcm_data`

@@ -166,7 +166,6 @@ Reads IO st and returns a Dict
 """
 function dcm_parse(
     st::IO;
-    return_vr = false,
     preamble = true,
     max_group = 0xffff,
     aux_vr = Dict{Tuple{UInt16,UInt16},String}(),
@@ -174,16 +173,12 @@ function dcm_parse(
     if preamble
         check_preamble(st)
     end
-    dcm = read_meta(st)
-    is_explicit, endian = determine_explicitness_and_endianness(dcm)
-    file_properties = (is_explicit = is_explicit, endian = endian, aux_vr = aux_vr)
-    (dcm, vr) = read_body(st, dcm, file_properties; max_group = max_group)
-    dcm = DICOMData(dcm)
-    if return_vr
-        return dcm, vr
-    else
-        return dcm
-    end
+    parsed = read_meta(st)
+    is_explicit, endian = determine_explicitness_and_endianness(parsed)
+    dcm = DICOMData(parsed.meta, endian, is_explicit, aux_vr)
+    read_body!(st, dcm; max_group = max_group)
+    # dcm = DICOMData(dcm, endian, is_explicit, vr, aux_vr)
+    return dcm
 end
 
 function check_preamble(st)
@@ -199,12 +194,10 @@ end
 
 # Meta is always explicit VR / little endian
 function read_meta(st::IO)
-    dcm = Dict{Tuple{UInt16,UInt16},Any}()
-    is_explicit = true
-    endian = :little
+    dcm = DICOMData(Dict{Tuple{UInt16,UInt16},Any}(), :little, true, Dict{Tuple{UInt16,UInt16},String}())
     while true
         pos = position(st)
-        (gelt, data, vr) = read_element(st, (is_explicit, endian, empty_dcm_dict))
+        (gelt, data, vr) = read_element(st, dcm)
         grp = gelt[1]
         if grp > 0x0002 || gelt == empty_tag
             seek(st, pos)
@@ -231,10 +224,10 @@ function determine_explicitness_and_endianness(dcm)
     return explicitness, endianness
 end
 
-function read_body(st, dcm, props; max_group)
-    vrs = Dict{Tuple{UInt16,UInt16},String}()
+function read_body!(st, dcm; max_group)
+    vrs = dcm.vr
     while true
-        (gelt, data, vr) = read_element(st, props, dcm)
+        (gelt, data, vr) = read_element(st, dcm)
         if gelt == empty_tag || gelt[1] > max_group
             break
         else
@@ -242,11 +235,11 @@ function read_body(st, dcm, props; max_group)
             vrs[gelt] = vr
         end
     end
-    return dcm, vrs
+    return dcm
 end
 
-function read_element(st::IO, props, dcm = empty_dcm_dict)
-    (is_explicit, endian, aux_vr) = props
+function read_element(st::IO, dcm::DICOMData)
+    is_explicit = dcm.isexplicit; endian = dcm.endian; aux_vr = dcm.vr;
     local grp
     try
         grp = read_group_tag(st, endian)
@@ -261,14 +254,14 @@ function read_element(st::IO, props, dcm = empty_dcm_dict)
     if isempty(vr)
         sz = isodd(sz) ? sz + 1 : sz
         skip(st, sz)
-        return (read_element(st::IO, props, dcm))
+        return (read_element(st::IO, dcm))
     end
 
     data = vr == "ST" || vr == "LT" || vr == "UT" || vr == "AS" ?
         String(read!(st, Array{UInt8}(undef, sz))) :
         sz == 0 || vr == "XX" ? Any[] :
-        vr == "SQ" ? sequence_parse(st, sz, props) :
-        gelt == (0x7FE0, 0x0010) ? pixeldata_parse(st, sz, vr, dcm, endian) :
+        vr == "SQ" ? sequence_parse(st, sz, dcm) :
+        gelt == (0x7FE0, 0x0010) ? pixeldata_parse(st, sz, vr, dcm) :
         sz == 0xffffffff ? undefined_length(st, vr) :
         vr == "FL" ? numeric_parse(st, Float32, sz, endian) :
         vr == "FD" ? numeric_parse(st, Float64, sz, endian) :
@@ -385,8 +378,8 @@ function skip_spaces(st, endpos)
     end
 end
 
-function sequence_parse(st, sz, props)
-    (is_explicit, endian, aux_vr) = props
+function sequence_parse(st, sz, dcm)
+    is_explicit = dcm.isexplicit; endian = dcm.endian; aux_vr = dcm.vr
     sq = Array{Dict{Tuple{UInt16,UInt16},Any},1}()
     while sz > 0
         grp = read_group_tag(st, endian)
@@ -398,17 +391,17 @@ function sequence_parse(st, sz, props)
         if grp != 0xFFFE || elt != 0xE000
             error("dicom: expected item tag in sequence")
         end
-        push!(sq, sequence_item(st, itemlen, props))
+        push!(sq, sequence_item(st, itemlen, dcm))
         sz -= 8 + (itemlen != 0xffffffff) * itemlen
     end
     return sq
 end
 
-function sequence_item(st::IO, sz, props)
+function sequence_item(st::IO, sz, dcm)
     item = Dict{Tuple{UInt16,UInt16},Any}()
     endpos = position(st) + sz
     while position(st) < endpos
-        (gelt, data, vr) = read_element(st, props, item)
+        (gelt, data, vr) = read_element(st, dcm)
         if isequal(gelt, (0xFFFE, 0xE00D))
             break
         end
@@ -418,7 +411,8 @@ function sequence_item(st::IO, sz, props)
 end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
-function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
+function pixeldata_parse(st::IO, sz, vr::String, dcm)
+    endian = dcm.endian
     dtype = determine_dtype(dcm, vr)
     yr = 1
     zr = 1
@@ -470,24 +464,20 @@ function pixeldata_parse(st::IO, sz, vr::String, dcm, endian)
         end
         data = permutedims(data, perm)
     else
-        # start with Basic Offset Table Item
-        is_explicit, endian = determine_explicitness_and_endianness(dcm)
-        data = Array{Any,1}(read_element(st, (is_explicit, endian, Dict()))[2])
+        data = []
         while true
             grp = read_group_tag(st, endian)
             elt = read_element_tag(st, endian)
-            xr = read_element_size(st, UInt32, endian)
+            itemlen = read_element_size(st, UInt32, endian)
             if grp == 0xFFFE && elt == 0xE0DD
-                return data
+                break
             end
             if grp != 0xFFFE || elt != 0xE000
-                error("dicom: expected item tag in encapsulated pixel data")
+                error("dicom: expected item tag in sequence")
             end
-            if dtype === UInt16
-                xr = div(xr, 2)
-            end
-            push!(data, read!(st, Array{dtype}(undef, xr)))
+            push!(data, read!(st, Array{UInt8}(undef, itemlen)))
         end
+        return data
     end
     return order.(data, endian)
 end
