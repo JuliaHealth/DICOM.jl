@@ -501,8 +501,12 @@ function determine_dtype(dcm, vr = "OB")
     end
     if bit_type == 8
         dtype = is_signed ? Int8 : UInt8
-    else
+    elseif bit_type == 16
         dtype = is_signed ? Int16 : UInt16
+    elseif bit_type == 32
+        dtype = is_signed ? Int32 : UInt32
+    else
+        error("Unsupported bit_type: $bit_type")
     end
     return dtype
 end
