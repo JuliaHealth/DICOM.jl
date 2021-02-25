@@ -15,6 +15,18 @@ end
 
 Base.setproperty!(dcm::DICOMData, sym::Symbol, val) = setindex!(dcm, val, sym)
 
+function Base.propertynames(dcm::DICOMData)
+    basic_properties = invoke(propertynames, Tuple{Any}, dcm)
+    dcm_keys = keys(dcm.meta)
+    pnames = Symbol[basic_properties...]
+    for (k, v) in fieldname_dict
+        if v in dcm_keys
+            push!(pnames, k)
+        end
+    end
+    return pnames
+end
+
 Base.setindex!(dcm::DICOMData, val, sym::Symbol) =
     setindex!(dcm.meta, val, fieldname_dict[sym])
 Base.setindex!(dcm::DICOMData, val, str::String) =

@@ -217,6 +217,7 @@ end
           dcm["PatientName"] ===
           dcm[(0x0010, 0x0010)] ===
           "Anonymized"
+    @test length(propertynames(dcm)) == 85
 end
 
 @testset "Parse entire folder" begin
