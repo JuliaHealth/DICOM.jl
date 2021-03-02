@@ -69,6 +69,9 @@ end
     # Test lookup-by-fieldname
     @test dcmMR[(0x0008, 0x0060)] == lookup(dcmMR, "Modality")
     @test dcmMR[(0x7FE0, 0x0010)] == lookup(dcmMR, "Pixel Data")
+
+    # test reading of SQ
+    @test isa(dcmMG.AnatomicRegionSequence, Vector{DICOM.DICOMData})
 end
 
 @testset "Writing DICOM" begin

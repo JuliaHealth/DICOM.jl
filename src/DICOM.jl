@@ -380,7 +380,7 @@ end
 
 function sequence_parse(st, sz, dcm)
     is_explicit = dcm.isexplicit; endian = dcm.endian; aux_vr = dcm.vr
-    sq = Array{Dict{Tuple{UInt16,UInt16},Any},1}()
+    sq = Vector{DICOMData}()
     while sz > 0
         grp = read_group_tag(st, endian)
         elt = read_element_tag(st, endian)
@@ -407,7 +407,7 @@ function sequence_item(st::IO, sz, dcm)
         end
         item[gelt] = data
     end
-    return item
+    return DICOMData(item, dcm.endian, dcm.isexplicit, dcm.vr)
 end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
@@ -583,7 +583,7 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
 
     if vr == "SQ"
         vr = is_explicit ? vr : empty_vr
-        return dcm_store(st, gelt, s -> sequence_write(s, data, is_explicit), vr)
+        return dcm_store(st, gelt, s -> sequence_write(s, map(d -> d.meta, data), is_explicit), vr)
     end
 
     # Pack data into array container. This is to undo "data = data[1]" from read_element().
