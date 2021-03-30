@@ -398,16 +398,21 @@ function sequence_parse(st, sz, dcm)
 end
 
 function sequence_item(st::IO, sz, dcm)
-    item = Dict{Tuple{UInt16,UInt16},Any}()
+    item = DICOMData(
+        Dict{Tuple{UInt16,UInt16},Any}(),
+        dcm.endian,
+        dcm.isexplicit,
+        dcm.vr
+    )
     endpos = position(st) + sz
     while position(st) < endpos
-        (gelt, data, vr) = read_element(st, dcm)
+        (gelt, data, vr) = read_element(st, item)
         if isequal(gelt, (0xFFFE, 0xE00D))
             break
         end
         item[gelt] = data
     end
-    return DICOMData(item, dcm.endian, dcm.isexplicit, dcm.vr)
+    return item
 end
 
 # always little-endian, "encapsulated" iff sz==0xffffffff
