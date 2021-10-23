@@ -239,7 +239,10 @@ function read_body!(st, dcm; max_group)
 end
 
 function read_element(st::IO, dcm::DICOMData)
-    is_explicit = dcm.isexplicit; endian = dcm.endian; aux_vr = dcm.vr;
+    is_explicit = dcm.isexplicit; endian = dcm.endian; aux_vr = dcm.vr
+
+    start = position(st) # Remember where this element starts in file
+
     local grp
     try
         grp = read_group_tag(st, endian)
@@ -254,7 +257,7 @@ function read_element(st::IO, dcm::DICOMData)
     if isempty(vr)
         sz = isodd(sz) ? sz + 1 : sz
         skip(st, sz)
-        return (read_element(st::IO, dcm))
+        return (gelt, start, vr)
     end
 
     data = vr == "ST" || vr == "LT" || vr == "UT" || vr == "AS" ?
@@ -699,6 +702,25 @@ function pixeldata_write(st, d, evr)
     else
         dcm_store(st, (0x7FE0, 0x0010), s -> write(s, d))
     end
+end
+
+function read_tag!(dcm::DICOMData, tag::Tuple{UInt16, UInt16}, filename::String)
+	# Remove tag from vr
+	delete!(dcm.vr, tag)
+
+	# Get starting position in file
+	start = dcm[tag]
+
+	# Open file and read
+	open(filename, "r") do f
+		seek(f, start)
+        (gelt, data, vr) = read_element(f, dcm)
+        if gelt == empty_tag
+            error("dicom: could not read element")
+        else
+            dcm[gelt] = data
+		end
+	end
 end
 
 end
