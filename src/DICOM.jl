@@ -131,7 +131,6 @@ always_implicit(grp, elt) =
 
 function find_dicom_files(dir)
     files = joinpath.(dir, readdir(dir))
-    dicom_files = []
     dicom_files = filter(file -> isdicom(file), files)
     return dicom_files
 end
