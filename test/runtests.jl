@@ -226,9 +226,19 @@ end
 @testset "Parse entire folder" begin
     # Following files have missing preamble and won't be parsed
     # ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
+    # and brain.bpm is not a DICOM file
     dcms = dcmdir_parse(data_folder)
     @test issorted([dcm[tag"Instance Number"] for dcm in dcms])
-    @test length(dcms) == length(readdir(data_folder)) - 2 # -2 because of note above
+    @test length(dcms) == length(readdir(data_folder)) - 3 # -3 because of note above
+end
+
+@testset "isdicom" begin
+    answer = DICOM.isdicom("test/testdata/brain.bmp")
+    @test answer === nothing
+
+    fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
+    answer2 = DICOM.isdicom(fileDX)
+    @test answer2 == true
 end
 
 @testset "Test tag macro" begin
