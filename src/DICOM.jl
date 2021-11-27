@@ -140,7 +140,7 @@ function isdicom(file)
         bytes = read(file, 132)[end-3:end]
         String(bytes) == "DICM"
     catch
-        not_dicom == true
+        println("not a dicom file")
     end
 end
 
