@@ -132,19 +132,9 @@ always_implicit(grp, elt) =
 function find_dicom_files(dir)
     files = joinpath.(dir, readdir(dir))
     dicom_files = []
-    # for file in 1:length(files)
-    #     if isdicom(file)
-    #         push!(dicom_files, file)
-    #     end
-    # end
     dicom_files = filter(file -> isdicom(file), files)
     return dicom_files
 end
-
-# function isdicom(file)
-#     bytes = read(file, 132)[end-3:end]
-#     String(bytes) == "DICM"
-# end
 
 function isdicom(file)
     try
