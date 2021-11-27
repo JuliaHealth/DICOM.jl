@@ -232,14 +232,14 @@ end
     @test length(dcms) == length(readdir(data_folder)) - 3 # -3 because of note above
 end
 
-@testset "isdicom" begin
-    answer = DICOM.isdicom("test/testdata/brain.bmp")
-    @test answer === nothing
+# @testset "isdicom" begin
+#     answer = DICOM.isdicom("test/testdata/brain.bmp")
+#     @test answer === nothing
 
-    fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
-    answer2 = DICOM.isdicom(fileDX)
-    @test answer2 == true
-end
+#     fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
+#     answer2 = DICOM.isdicom(fileDX)
+#     @test answer2 == true
+# end
 
 @testset "Test tag macro" begin
     @test tag"Modality" === (0x0008, 0x0060) === DICOM.fieldname_dict[:Modality]
