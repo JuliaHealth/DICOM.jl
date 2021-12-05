@@ -229,7 +229,7 @@ end
     # along with an invalid notdicom.dcm file which we will first create 
     notdicomfile = joinpath(data_folder, "notdicom.dcm")
     open(notdicomfile, "w") do io
-      print(io, "Not valid dicom file")
+      print(io, "!")
     end
     
     # First, test the isdicom() function
