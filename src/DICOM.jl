@@ -136,8 +136,12 @@ function find_dicom_files(dir)
 end
 
 function isdicom(file)
-    bytes = read(file, 132)[end-3:end]
-    String(bytes) == "DICM"
+    all_bytes = read(file, 132)
+    if length(all_bytes) < 132
+        return false
+    end
+    my_bytes = all_bytes[end-3:end]
+    return String(my_bytes) == "DICM"
 end
 
 function dcmdir_parse(dir; kwargs...)

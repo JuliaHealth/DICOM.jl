@@ -226,9 +226,21 @@ end
 @testset "Parse entire folder" begin
     # Following files have missing preamble and won't be parsed
     # ["OT_Implicit_Little_Headless.dcm", "CT_Implicit_Little_Headless_Retired.dcm"]
+    # along with an invalid notdicom.dcm file which we will first create 
+    notdicomfile = joinpath(data_folder, "notdicom.dcm")
+    open(notdicomfile, "w") do io
+      print(io, "!")
+    end
+    
+    # First, test the isdicom() function
+    fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
+    @test DICOM.isdicom(fileDX) == true
+    @test DICOM.isdicom(notdicomfile) == false
+
+    # Second, test if all valid dicom file can be parsed
     dcms = dcmdir_parse(data_folder)
     @test issorted([dcm[tag"Instance Number"] for dcm in dcms])
-    @test length(dcms) == length(readdir(data_folder)) - 2 # -2 because of note above
+    @test length(dcms) == length(readdir(data_folder)) - 3 # -3 because of note above
 end
 
 @testset "Test tag macro" begin
