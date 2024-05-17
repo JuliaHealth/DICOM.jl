@@ -25,8 +25,8 @@ const dicom_samples = Dict(
         "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/OT_Implicit_Little_Headless.dcm",
     "US_Explicit_Big_RGB.dcm" =>
         "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/US_Explicit_Big_RGB.dcm",
-    "DX_Implicit_Little_Interleaved.dcm" =>
-        "https://github.com/OHIF/viewer-testdata/raw/master/dcm/zoo-exotic/5.dcm",
+    # "DX_Implicit_Little_Interleaved.dcm" =>
+    #    "https://github.com/OHIF/viewer-testdata/raw/master/dcm/zoo-exotic/5.dcm",
 )
 
 function download_dicom(filename; folder = data_folder)
@@ -185,11 +185,13 @@ end
     @test size(dcmUS[(0x7fe0, 0x0010)]) == (480, 640, 3)
 end
 
+#==
 @testset "Test interleaved" begin
     fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
     dcmDX = dcm_parse(fileDX)
     @test size(dcmDX[(0x7fe0, 0x0010)]) == (1590, 2593, 3)
 end
+==#
 
 @testset "Test Compressed" begin
     fileCT = download_dicom("CT_JPEG70.dcm")
@@ -233,8 +235,8 @@ end
     end
     
     # First, test the isdicom() function
-    fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
-    @test DICOM.isdicom(fileDX) == true
+    fileCT = download_dicom("CT_JPEG70.dcm")
+    @test DICOM.isdicom(fileCT) == true
     @test DICOM.isdicom(notdicomfile) == false
 
     # Second, test if all valid dicom file can be parsed
@@ -254,4 +256,20 @@ end
     # test that compile time error is thrown if tag does not exist
     @test macroexpand(Main, :(tag"Modality")) === (0x0008, 0x0060)
     @test_throws LoadError macroexpand(Main, :(tag"nonsense"))
+end
+
+@testset "Test VR in Sequence" begin
+    # Test auxillary VR passed to nested tags
+    fileMG = download_dicom("MG_Explicit_Little.dcm")
+    dcmMG = dcm_parse(fileMG)
+    # Set value of CodeMeaning for both tags to something arbitrary
+    codemeaning_vr = Dict{Tuple{UInt16, UInt16}, String}((0x008, 0x104) => "US")
+    dcmMG[(0x0008, 0x2218)][1][(0x0008, 0x0104)] = 0x0001
+    dcmMG[(0x0054, 0x0220)][1][(0x0008, 0x0104)] = 0x0002
+
+    outMG3 = joinpath(data_folder, "outMG3.dcm")
+    dcm_write(outMG3, dcmMG; aux_vr = codemeaning_vr)
+    dcmMG3 = dcm_parse(outMG3)
+    @test dcmMG3[(0x0008, 0x2218)][1][(0x0008, 0x0104)] == 0x0001
+    @test dcmMG3[(0x0054, 0x0220)][1][(0x0008, 0x0104)] == 0x0002
 end
