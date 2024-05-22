@@ -25,8 +25,8 @@ const dicom_samples = Dict(
         "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/OT_Implicit_Little_Headless.dcm",
     "US_Explicit_Big_RGB.dcm" =>
         "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/US_Explicit_Big_RGB.dcm",
-    # "DX_Implicit_Little_Interleaved.dcm" =>
-    #    "https://github.com/OHIF/viewer-testdata/raw/master/dcm/zoo-exotic/5.dcm",
+    "DX_Implicit_Little_Interleaved.dcm" =>
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/DX_Implicit_Little_Interleaved.dcm",
 )
 
 function download_dicom(filename; folder = data_folder)
@@ -185,13 +185,11 @@ end
     @test size(dcmUS[(0x7fe0, 0x0010)]) == (480, 640, 3)
 end
 
-#==
 @testset "Test interleaved" begin
     fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
     dcmDX = dcm_parse(fileDX)
     @test size(dcmDX[(0x7fe0, 0x0010)]) == (1590, 2593, 3)
 end
-==#
 
 @testset "Test Compressed" begin
     fileCT = download_dicom("CT_JPEG70.dcm")
