@@ -1,5 +1,6 @@
 using Test
 using DICOM
+using Downloads
 
 const data_folder = joinpath(@__DIR__, "testdata")
 if !isdir(data_folder)
@@ -34,7 +35,7 @@ function download_dicom(filename; folder = data_folder)
     url = dicom_samples[filename]
     filepath = joinpath(folder, filename)
     if !isfile(filepath)
-        download(url, filepath)
+        Downloads.download(url, filepath)
     end
     return filepath
 end
