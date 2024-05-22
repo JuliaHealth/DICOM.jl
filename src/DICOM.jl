@@ -658,10 +658,10 @@ function dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function, vr::Str
         sz += 1
     end
     seek(st, p)
-    write(st, convert(lentype, max(0, sz)))
+    vr == "SQ" || gelt == (0xFFFE, 0xE000) ? write(st, convert(lentype, 0xffffffff)) : write(st, convert(lentype, max(0, sz)))
     seek(st, endp)
     if szWasOdd
-        write(st, UInt8(0))
+        vr in ("AE", "CS", "SH", "LO", "PN", "DA", "DT", "TM") ? write(st, UInt8(0x20)) : write(st, UInt8(0))
     end
 end
 

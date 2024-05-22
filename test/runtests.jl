@@ -273,3 +273,37 @@ end
     @test dcmMG3[(0x0008, 0x2218)][1][(0x0008, 0x0104)] == 0x0001
     @test dcmMG3[(0x0054, 0x0220)][1][(0x0008, 0x0104)] == 0x0002
 end
+
+function write_to_string(writef)
+    io = IOBuffer()
+    writef(io)
+    return String(take!(io))
+end
+
+@testset "Padding string values" begin
+    empty_vr_dict = Dict{Tuple{UInt16, UInt16}, String}()
+    # Test that UI strings are padded with '\0' to even length
+    SOPClassUID = write_to_string(io -> DICOM.write_element(io, (0x0008, 0x0016), "1.2.840.10008.5.1.4.1.1.4", true, empty_vr_dict))
+    @test length(SOPClassUID) % 2 == 0
+    @test SOPClassUID[end] == '\0'
+    # Test that SH strings are padded with ' ' to even length
+    StudyDescription = write_to_string(io -> DICOM.write_element(io, (0x0008, 0x1030), "BestImageEver", true, empty_vr_dict))
+    @test length(StudyDescription) % 2 == 0
+    @test StudyDescription[end] == ' '
+end
+
+@testset "Writing Sequence" begin
+    empty_vr_dict = Dict{Tuple{UInt16, UInt16}, String}()
+    # Setup internal SQ DICOMData
+    sq_meta = Dict{Tuple{UInt16, UInt16}, Any}([(0x0008, 0x0100) => "UNDEFINED", (0x0008, 0x010b) => 'N', (0x0008, 0x0104) => "UNDEFINED"])
+    sq_el = DICOM.DICOMData(sq_meta, :little, true, empty_vr_dict)
+
+    # Setup external SQ DICOMData
+    meta = Dict{Tuple{UInt16, UInt16}, Any}((0x0040, 0x0260) => [sq_el])
+    el = DICOM.DICOMData(meta, :little, true, empty_vr_dict)
+
+    PerformedProtocolSequence = write_to_string(io -> DICOM.write_element(io, (0x0040, 0x0260), el[(0x0040, 0x0260)], true, empty_vr_dict))
+    # Check that the length is (0xffffffff) for undefined length SQ
+    @test PerformedProtocolSequence[9:12] == "\xff\xff\xff\xff"
+    @test PerformedProtocolSequence[end-7:end] == "\xfe\xff\xdd\xe0\x00\x00\x00\x00"
+end
