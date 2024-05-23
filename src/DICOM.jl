@@ -592,7 +592,7 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
 
     if vr == "SQ"
         vr = is_explicit ? vr : empty_vr
-        return dcm_store(st, gelt, s -> sequence_write(s, map(d -> d.meta, data), is_explicit), vr)
+        return dcm_store(st, gelt, s -> sequence_write(s, map(d -> d.meta, data), is_explicit, aux_vr), vr)
     end
 
     # Pack data into array container. This is to undo "data = data[1]" from read_element().
@@ -658,27 +658,27 @@ function dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function, vr::Str
         sz += 1
     end
     seek(st, p)
-    write(st, convert(lentype, max(0, sz)))
+    vr == "SQ" || gelt == (0xFFFE, 0xE000) ? write(st, convert(lentype, 0xffffffff)) : write(st, convert(lentype, max(0, sz)))
     seek(st, endp)
     if szWasOdd
-        write(st, UInt8(0))
+        vr in ("AE", "CS", "SH", "LO", "PN", "DA", "DT", "TM") ? write(st, UInt8(0x20)) : write(st, UInt8(0))
     end
 end
 
-sequence_write(st::IO, items::Array{Any,1}, evr::Bool) =
-    sequence_write(st, convert(Array{Dict{Tuple{UInt16,UInt16},Any},1}, items), evr)
-function sequence_write(st::IO, items::Array{Dict{Tuple{UInt16,UInt16},Any},1}, evr)
+sequence_write(st::IO, items::Array{Any,1}, evr::Bool, aux_vr::Dict{Tuple{UInt16, UInt16}}) =
+    sequence_write(st, convert(Array{Dict{Tuple{UInt16,UInt16},Any},1}, items), evr, aux_vr)
+function sequence_write(st::IO, items::Array{Dict{Tuple{UInt16,UInt16},Any},1}, evr, aux_vr::Dict{Tuple{UInt16, UInt16}})
     for subitem in items
         if length(subitem) > 0
-            dcm_store(st, (0xFFFE, 0xE000), s -> sequence_item_write(s, subitem, evr))
+            dcm_store(st, (0xFFFE, 0xE000), s -> sequence_item_write(s, subitem, evr, aux_vr))
         end
     end
     write(st, UInt16[0xFFFE, 0xE0DD, 0x0000, 0x0000])
 end
 
-function sequence_item_write(st::IO, items::Dict{Tuple{UInt16,UInt16},Any}, evr)
+function sequence_item_write(st::IO, items::Dict{Tuple{UInt16,UInt16},Any}, evr, aux_vr::Dict{Tuple{UInt16, UInt16}})
     for gelt in sort(collect(keys(items)))
-        write_element(st, gelt, items[gelt], evr, empty_dcm_dict)
+        write_element(st, gelt, items[gelt], evr, aux_vr)
     end
     write(st, UInt16[0xFFFE, 0xE00D, 0x0000, 0x0000])
 end

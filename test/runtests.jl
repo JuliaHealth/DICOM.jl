@@ -1,5 +1,6 @@
 using Test
 using DICOM
+using Downloads
 
 const data_folder = joinpath(@__DIR__, "testdata")
 if !isdir(data_folder)
@@ -26,7 +27,7 @@ const dicom_samples = Dict(
     "US_Explicit_Big_RGB.dcm" =>
         "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/US_Explicit_Big_RGB.dcm",
     "DX_Implicit_Little_Interleaved.dcm" =>
-        "https://github.com/OHIF/viewer-testdata/raw/master/dcm/zoo-exotic/5.dcm",
+        "https://github.com/notZaki/DICOMSamples/raw/master/DICOMSamples/DX_Implicit_Little_Interleaved.dcm",
 )
 
 function download_dicom(filename; folder = data_folder)
@@ -34,7 +35,7 @@ function download_dicom(filename; folder = data_folder)
     url = dicom_samples[filename]
     filepath = joinpath(folder, filename)
     if !isfile(filepath)
-        download(url, filepath)
+        Downloads.download(url, filepath)
     end
     return filepath
 end
@@ -233,8 +234,8 @@ end
     end
     
     # First, test the isdicom() function
-    fileDX = download_dicom("DX_Implicit_Little_Interleaved.dcm")
-    @test DICOM.isdicom(fileDX) == true
+    fileCT = download_dicom("CT_JPEG70.dcm")
+    @test DICOM.isdicom(fileCT) == true
     @test DICOM.isdicom(notdicomfile) == false
 
     # Second, test if all valid dicom file can be parsed
@@ -254,4 +255,54 @@ end
     # test that compile time error is thrown if tag does not exist
     @test macroexpand(Main, :(tag"Modality")) === (0x0008, 0x0060)
     @test_throws LoadError macroexpand(Main, :(tag"nonsense"))
+end
+
+@testset "Test VR in Sequence" begin
+    # Test auxillary VR passed to nested tags
+    fileMG = download_dicom("MG_Explicit_Little.dcm")
+    dcmMG = dcm_parse(fileMG)
+    # Set value of CodeMeaning for both tags to something arbitrary
+    codemeaning_vr = Dict{Tuple{UInt16, UInt16}, String}((0x008, 0x104) => "US")
+    dcmMG[(0x0008, 0x2218)][1][(0x0008, 0x0104)] = 0x0001
+    dcmMG[(0x0054, 0x0220)][1][(0x0008, 0x0104)] = 0x0002
+
+    outMG3 = joinpath(data_folder, "outMG3.dcm")
+    dcm_write(outMG3, dcmMG; aux_vr = codemeaning_vr)
+    dcmMG3 = dcm_parse(outMG3)
+    @test dcmMG3[(0x0008, 0x2218)][1][(0x0008, 0x0104)] == 0x0001
+    @test dcmMG3[(0x0054, 0x0220)][1][(0x0008, 0x0104)] == 0x0002
+end
+
+function write_to_string(writef)
+    io = IOBuffer()
+    writef(io)
+    return String(take!(io))
+end
+
+@testset "Padding string values" begin
+    empty_vr_dict = Dict{Tuple{UInt16, UInt16}, String}()
+    # Test that UI strings are padded with '\0' to even length
+    SOPClassUID = write_to_string(io -> DICOM.write_element(io, (0x0008, 0x0016), "1.2.840.10008.5.1.4.1.1.4", true, empty_vr_dict))
+    @test length(SOPClassUID) % 2 == 0
+    @test SOPClassUID[end] == '\0'
+    # Test that SH strings are padded with ' ' to even length
+    StudyDescription = write_to_string(io -> DICOM.write_element(io, (0x0008, 0x1030), "BestImageEver", true, empty_vr_dict))
+    @test length(StudyDescription) % 2 == 0
+    @test StudyDescription[end] == ' '
+end
+
+@testset "Writing Sequence" begin
+    empty_vr_dict = Dict{Tuple{UInt16, UInt16}, String}()
+    # Setup internal SQ DICOMData
+    sq_meta = Dict{Tuple{UInt16, UInt16}, Any}([(0x0008, 0x0100) => "UNDEFINED", (0x0008, 0x010b) => 'N', (0x0008, 0x0104) => "UNDEFINED"])
+    sq_el = DICOM.DICOMData(sq_meta, :little, true, empty_vr_dict)
+
+    # Setup external SQ DICOMData
+    meta = Dict{Tuple{UInt16, UInt16}, Any}((0x0040, 0x0260) => [sq_el])
+    el = DICOM.DICOMData(meta, :little, true, empty_vr_dict)
+
+    PerformedProtocolSequence = write_to_string(io -> DICOM.write_element(io, (0x0040, 0x0260), el[(0x0040, 0x0260)], true, empty_vr_dict))
+    # Check that the length is (0xffffffff) for undefined length SQ
+    @test PerformedProtocolSequence[9:12] == "\xff\xff\xff\xff"
+    @test PerformedProtocolSequence[end-7:end] == "\xfe\xff\xdd\xe0\x00\x00\x00\x00"
 end
