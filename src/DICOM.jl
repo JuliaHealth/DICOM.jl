@@ -147,7 +147,7 @@ end
 function dcmdir_parse(dir; kwargs...)
     dicom_files = find_dicom_files(dir)
     unsorted_dicoms = [dcm_parse(file; kwargs...) for file in dicom_files]
-    dicoms = sort!(unsorted_dicoms, by = dicom -> dicom[tag"Instance Number"])
+    dicoms = sort!(unsorted_dicoms, by = dicom -> haskey(dicom, tag"Instance Number") ? dicom[tag"Instance Number"] : -1)
     return dicoms
 end
 
@@ -261,6 +261,21 @@ function read_element(st::IO, dcm::DICOMData)
         return (read_element(st::IO, dcm))
     end
 
+    function parse_is(x)
+        if x == ""
+            return 0
+        end
+
+        try
+            return parse(Int, x)
+        catch e
+            @warn """Cannot parse data in element $gelt:
+            $e
+            """
+            return 0
+        end
+    end
+
     data = vr == "ST" || vr == "LT" || vr == "UT" || vr == "AS" ?
         String(read!(st, Array{UInt8}(undef, sz))) :
         sz == 0 || vr == "XX" ? Any[] :
@@ -281,7 +296,7 @@ function read_element(st::IO, dcm::DICOMData)
         vr == "DS" ?
         map(x -> x == "" ? 0.0 : parse(Float64, x), string_parse(st, sz, 16, false)) :
         vr == "IS" ?
-        map(x -> x == "" ? 0 : parse(Int, x), string_parse(st, sz, 12, false)) :
+        map(parse_is, string_parse(st, sz, 12, false)) :
         vr == "AE" ? string_parse(st, sz, 16, false) :
         vr == "CS" ? string_parse(st, sz, 16, false) :
         vr == "SH" ? string_parse(st, sz, 16, false) :
