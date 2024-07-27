@@ -334,7 +334,7 @@ function determine_vr_and_lentype(st, gelt, is_explicit, aux_vr)
     lentype = UInt32
     if is_explicit && !always_implicit(grp, elt)
         vr = String(read!(st, Array{UInt8}(undef, 2)))
-        if vr in ("OB", "OW", "OF", "SQ", "UT", "UN")
+        if vr in ("OB", "OW", "OF", "SQ", "UT", "UN", "UC")
             skip(st, 2)
         else
             lentype = UInt16
