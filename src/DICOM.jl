@@ -575,10 +575,26 @@ function dcm_write(
         write(st, "DICM")
     end
     (is_explicit, endian) = determine_explicitness_and_endianness(dcm)
-    for gelt in sort(collect(keys(dcm)))
+    sorted_keys = sort(collect(keys(dcm)))
+    meta_len = findlast(k -> k[1] == (0x0002), sorted_keys)
+    write_meta_elements(st, view(sorted_keys, 1:meta_len), dcm, is_explicit, aux_vr)
+    for gelt in view(sorted_keys, meta_len+1:length(sorted_keys))
         write_element(st, gelt, dcm[gelt], is_explicit, aux_vr)
     end
     return
+end
+
+function write_meta_elements(st::IO, keys::AbstractVector, dcm, is_explicit, aux_vr)
+    # Write (0x0002, 0x0000) first with whatever is in dcm and correct it at the end of the meta block
+    write_element(st, keys[1], dcm[keys[1]], is_explicit, aux_vr)
+    p = position(st)
+    for gelt in keys[2:end]
+        write_element(st, gelt, dcm[gelt], is_explicit, aux_vr)
+    end
+    endp = position(st)
+    seek(st, p - 4)
+    write(st, UInt32(endp - p)) 
+    seek(st, endp)
 end
 
 function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, aux_vr)

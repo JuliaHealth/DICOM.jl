@@ -179,6 +179,25 @@ end
     @test size(dcmMR_UnspecifiedLength[tag"Pixel Data"]) === (256, 256, 27)
 end
 
+@testset "File Meta Information Group Length update" begin
+    fileMR = download_dicom("MR_Implicit_Little.dcm")
+    dcmMR = dcm_parse(fileMR)
+    
+    # Get the meta data length
+    meta_length = dcmMR[(0x0002, 0x0000)]
+
+    # Update the meta data by reducing the Implementation Version Name
+    dcmMR[(0x0002, 0x0013)] = dcmMR[(0x0002, 0x0013)][1:end-2]
+
+    # Write the updated meta data to a new file
+    outMR = joinpath(data_folder, "outMR.dcm")
+    dcm_write(outMR, dcmMR)
+
+    # Read the new file and check if the meta data length has changed
+    dcmMR_out = dcm_parse(outMR)
+    @test Int(dcmMR_out[(0x0002, 0x0000)]) == meta_length - 2
+end
+
 @testset "Test big endian" begin
     fileUS = download_dicom("US_Explicit_Big_RGB.dcm")
     dcmUS = dcm_parse(fileUS)
