@@ -285,10 +285,16 @@ end
     SOPClassUID = write_to_string(io -> DICOM.write_element(io, (0x0008, 0x0016), "1.2.840.10008.5.1.4.1.1.4", true, empty_vr_dict))
     @test length(SOPClassUID) % 2 == 0
     @test SOPClassUID[end] == '\0'
+
     # Test that SH strings are padded with ' ' to even length
     StudyDescription = write_to_string(io -> DICOM.write_element(io, (0x0008, 0x1030), "BestImageEver", true, empty_vr_dict))
     @test length(StudyDescription) % 2 == 0
     @test StudyDescription[end] == ' '
+    
+    # Test that DS strings are padded with ' ' to even length
+    PixelSpacing = write_to_string(io -> DICOM.write_element(io, (0x0028, 0x0030), [0.5, 0.5], true, empty_vr_dict))
+    @test length(PixelSpacing) % 2 == 0
+    @test PixelSpacing[end] == ' '
 end
 
 @testset "Writing Sequence" begin
