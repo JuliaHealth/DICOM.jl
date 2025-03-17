@@ -306,3 +306,14 @@ end
     @test PerformedProtocolSequence[9:12] == "\xff\xff\xff\xff"
     @test PerformedProtocolSequence[end-7:end] == "\xfe\xff\xdd\xe0\x00\x00\x00\x00"
 end
+
+@testset "Integer / Decimal String handling" begin
+    empty_vr_dict = Dict{Tuple{UInt16, UInt16}, String}()
+    # Check IS and DS values are written on 16 bytes (string length)
+    # Using Patient size as an example
+    PatientSize = write_to_string(io -> DICOM.write_element(io, (0x0010, 0x1020), 1.2345678910111213, true, empty_vr_dict))
+    @test PatientSize[1:6] == "\x10\x00\x20\x10DS"
+    @test PatientSize[7:8] == "\x10\x00"
+    @test length(PatientSize) == 24
+    @test PatientSize[9:24] == "1.23456789101112"
+end

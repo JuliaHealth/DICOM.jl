@@ -616,9 +616,14 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
     end
 
     data = isempty(data) ? UInt8[] :
-        vr in ("OB", "OF", "OW", "ST", "LT", "UT") ? data :
-        vr in ("AE", "CS", "SH", "LO", "UI", "PN", "DA", "DT", "TM") ?
-        string_write(data, 0) :
+        vr in ("OB", "OF", "OW", "UT") ? data :
+        vr == "PN" ? string_write(data, 0) : # Enforce maximum length component by component
+        vr == "ST" ? join([string_write(x, 64) for x in split(data, '^')], '^') :
+        vr == "LT" ? string_write(data, 10240) :
+        vr in ("SH", "AE", "CS", "TM") ? string_write(data, 16) :
+        vr == "DA" ? string_write(data, 8) :
+        vr == ("LO", "UI") ? string_write(data, 64) :
+        vr == "DT" ? string_write(data, 26) :
         vr == "FL" ? convert(Array{Float32,1}, data) :
         vr == "FD" ? convert(Array{Float64,1}, data) :
         vr == "SL" ? convert(Array{Int32,1}, data) :
@@ -626,7 +631,9 @@ function write_element(st::IO, gelt::Tuple{UInt16,UInt16}, data, is_explicit, au
         vr == "UL" ? convert(Array{UInt32,1}, data) :
         vr == "US" ? convert(Array{UInt16,1}, data) :
         vr == "AT" ? [data...] :
-        vr in ("DS", "IS") ? string_write(map(string, data), 0) : data
+        vr == "IS" ? string_write(map(string, data), 12) :
+        vr == "DS" ? string_write(map(string, data), 16) :
+        data
 
     if !is_explicit && gelt[1] > 0x0002
         vr = empty_vr
@@ -641,7 +648,12 @@ string_write(vals::SubString{String}, maxlen) = string_write(convert(String, val
 string_write(vals::Tuple{String,String}, maxlen) = string_write(collect(vals), maxlen)
 string_write(vals::Char, maxlen) = string_write(string(vals), maxlen)
 string_write(vals::String, maxlen) = string_write([vals], maxlen)
-string_write(vals::Array{String,1}, maxlen) = join(vals, '\\')
+function string_write(vals::Array{String, 1}, maxlen)
+    if maxlen != 0
+        vals = map(x -> first(x, maxlen), vals)
+    end
+    return join(vals, '\\')
+end
 
 dcm_store(st::IO, gelt::Tuple{UInt16,UInt16}, writef::Function) =
     dcm_store(st, gelt, writef, empty_vr)
